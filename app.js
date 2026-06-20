@@ -1,0 +1,627 @@
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'recebimentos-semanais-v1';
+  const DATA_VERSION = 9;
+  const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+  const CLIENT_ALIASES = {
+    PEDAMZ: ['PED AMZ','PEDRO AMZ','PEDDRO AMZ','PEDRO'],
+    GRAZI: ['GRAZI','GRAZIELLE'],
+    GABIGH: ['GAB GH','GABI GH','GABRIEL GH','GABRIEL'],
+    IVOGH: ['IVO GH','IVO'],
+    TIAGOGH: ['TIAGO GH','THIAGO GH','TIAGO','THIAGO'],
+    JON2GH: ['JON2GH','JON 2 GH','JONATAS','JONATAS GH']
+  };
+  const $ = (id) => document.getElementById(id);
+  let state = loadState();
+  let toastTimer;
+  let notificationTimer;
+  let renderedDay = '';
+  let payerSearchTerm = '';
+
+  function loadState() {
+    try {
+      return {
+        payers: [], payments: {}, paymentHistory: [], settings: { notifications: false, lastNotificationDate: '' },
+        ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+      };
+    } catch {
+      return { payers: [], payments: {}, paymentHistory: [], settings: { notifications: false, lastNotificationDate: '' } };
+    }
+  }
+
+  function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  function exportBackup() {
+    state.settings ||= {}; state.settings.lastBackupAt = new Date().toISOString(); saveState();
+    const payload = { app: 'recebimentos-semanais', version: DATA_VERSION, exportedAt: new Date().toISOString(), data: state };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob); const link = document.createElement('a');
+    link.href = url; link.download = `backup-recebimentos-${localDate()}.json`; document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000); showToast('Backup exportado com sucesso.'); renderBackupStatus();
+  }
+  function exportCsv() {
+    const rows = [['Cliente','Status do cadastro','Data do pagamento','Vencimento','Valor recebido','Situação']];
+    allVisiblePayers().forEach(payer => recordsFor(payer).filter(item => item.payment.status === 'paid').sort((a,b) => (a.payment.receivedDate || '').localeCompare(b.payment.receivedDate || '')).forEach(({ key,payment }) => {
+      const due = payment.dueDate || localDate(dueDate(payer,parseLocalDate(key)));
+      rows.push([payer.name,payer.active === false ? 'Inativo' : 'Ativo',payment.receivedDate || '',due,Number(payment.received) || 0,payment.paidLate ? 'Pago atrasado' : 'Pago em dia']);
+    }));
+    const csv = '\uFEFF' + rows.map(row => row.map(value => `"${String(value).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); const link = document.createElement('a');
+    link.href=url; link.download=`relatorio-recebimentos-${localDate()}.csv`; document.body.appendChild(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000); showToast('Relatório CSV exportado.');
+  }
+  function mergeBackup(incoming) {
+    const payerMap = new Map((state.payers || []).map(payer => [payer.id, payer]));
+    (incoming.payers || []).forEach(payer => payerMap.set(payer.id, { ...(payerMap.get(payer.id) || {}), ...payer }));
+    const payments = { ...(state.payments || {}) };
+    Object.entries(incoming.payments || {}).forEach(([week, records]) => { payments[week] = { ...(payments[week] || {}), ...records }; });
+    const historyMap = new Map((state.paymentHistory || []).map(record => [record.id, record]));
+    (incoming.paymentHistory || []).forEach(record => historyMap.set(record.id, record));
+    state = { ...state, ...incoming, payers: [...payerMap.values()], payments, paymentHistory: [...historyMap.values()], settings: { ...(state.settings || {}), ...(incoming.settings || {}) } };
+  }
+  async function importBackup(file) {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()); const incoming = parsed?.data || parsed;
+      if (!incoming || !Array.isArray(incoming.payers) || typeof incoming.payments !== 'object') throw new Error('Formato inválido');
+      if (!confirm(`Importar o backup com ${incoming.payers.length} pagador(es)? Os dados atuais serão preservados e combinados.`)) return;
+      mergeBackup(incoming); migrateState(); saveState(); renderAll(); showToast('Backup importado. Dados restaurados!');
+    } catch (error) { console.error(error); alert('Este arquivo não é um backup válido do aplicativo.'); }
+    finally { $('backupFileInput').value = ''; }
+  }
+  function uid() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+  function localDate(date = new Date()) { const d = new Date(date); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+  function parseLocalDate(value) { if (!value) return null; const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); }
+  function startOfWeek(date = new Date()) { const d = new Date(date); d.setHours(0, 0, 0, 0); const offset = d.getDay() === 0 ? -6 : 1 - d.getDay(); d.setDate(d.getDate() + offset); return d; }
+  function weekKey(date = new Date()) { return localDate(startOfWeek(date)); }
+  function termsForWeek(payer, week = startOfWeek()) { const key = weekKey(week); const history = (payer.termsHistory || []).slice().sort((a,b) => a.effectiveWeek.localeCompare(b.effectiveWeek)); return history.filter(item => item.effectiveWeek <= key).pop() || history[0] || { amount:Number(payer.amount),day:Number(payer.day) }; }
+  function amountForWeek(payer, week = startOfWeek()) { return Number(termsForWeek(payer,week).amount) || 0; }
+  function dueDate(payer, week = startOfWeek()) { const start = startOfWeek(week); const day = Number(termsForWeek(payer,start).day); const d = new Date(start); const offset = day === 0 ? 6 : day - 1; d.setDate(d.getDate() + offset); return d; }
+  function firstDueOnOrAfter(date, day) { const result = new Date(date); result.setHours(0, 0, 0, 0); result.setDate(result.getDate() + ((day - result.getDay() + 7) % 7)); return result; }
+  function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0); }
+  function parseMoney(value) { return Number(String(value).trim().replace(/\s/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.')); }
+  function escapeHtml(value = '') { return String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c])); }
+  function formatShort(date) { return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(date); }
+  function formatFull(date) { return new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).format(date); }
+  function formatDate(value) { const date = parseLocalDate(value); return date ? new Intl.DateTimeFormat('pt-BR').format(date) : 'Nenhum registrado'; }
+  function statusLabel(status) { return { paid: 'Pago', partial: 'Pago Parcial', unpaid: 'Não Pago' }[status] || 'Não Pago'; }
+  function paymentFor(payerId, key = weekKey()) { const payer = state.payers.find(item => item.id === payerId); const imported = payer ? importedPaymentFor(payer,key) : null; if (imported?.status === 'paid') return imported; const explicit = payer ? relatedPayers(payer).map(item => state.payments[key]?.[item.id]).find(Boolean) : state.payments[key]?.[payerId]; return explicit || imported || { status: 'unpaid', received: 0, notes: '' }; }
+  function showToast(message) { $('toast').textContent = message; $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2400); }
+
+  function deadlineFor(date) { const deadline = new Date(date); deadline.setDate(deadline.getDate() + 1); deadline.setHours(12, 0, 0, 0); return deadline; }
+  function receivedMoment(payment) { if (payment.receivedAt) return new Date(payment.receivedAt); const moment = parseLocalDate(payment.receivedDate); if (moment) moment.setHours(12,0,0,0); return moment; }
+  function isPaymentLate(payment,due) { const received = receivedMoment(payment); return Boolean(received && received > deadlineFor(due)); }
+  function timerMarkup(mode, date) { return `<span class="payment-timer ${mode === 'overdue' ? 'overdue' : ''}" data-timer="${mode}" data-target="${localDate(date)}"></span>`; }
+  function formatDuration(milliseconds, roundUp = false) {
+    const rawMinutes = milliseconds / 60000; const totalMinutes = Math.max(0, roundUp ? Math.ceil(rawMinutes) : Math.floor(rawMinutes));
+    const days = Math.floor(totalMinutes / 1440); const hours = Math.floor((totalMinutes % 1440) / 60); const minutes = totalMinutes % 60;
+    return days ? `${days}d ${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}min` : `${hours}h ${String(minutes).padStart(2, '0')}min`;
+  }
+  function updateTimers() {
+    const now = new Date();
+    document.querySelectorAll('[data-timer]').forEach(element => {
+      const target = parseLocalDate(element.dataset.target); if (!target) return;
+      const deadline = deadlineFor(target); const overdue = element.dataset.timer === 'overdue';
+      element.textContent = overdue ? `Atrasado há ${formatDuration(now - deadline)}` : (deadline > now ? `Faltam ${formatDuration(deadline - now, true)}` : 'Prazo encerrado');
+    });
+  }
+
+  function directLocalRecordsFor(payer) {
+    return Object.entries(state.payments).map(([key, payments]) => ({ key, payment: payments?.[payer.id] })).filter(item => item.payment);
+  }
+
+  function payerIdentity(payer) { return normalizeClientName(clientDefinitionForPayer(payer)?.clientCode || payer.name); }
+  function relatedPayers(payer) { const identity = payerIdentity(payer); return state.payers.filter(item => payerIdentity(item) === identity); }
+  function localRecordsFor(payer) { return relatedPayers(payer).flatMap(directLocalRecordsFor); }
+  function allVisiblePayers() {
+    const grouped = new Map();
+    state.payers.forEach(payer => {
+      const identity = payerIdentity(payer); const current = grouped.get(identity);
+      if (!current || directLocalRecordsFor(payer).length > directLocalRecordsFor(current).length) grouped.set(identity,payer);
+    });
+    return [...grouped.values()];
+  }
+  function visiblePayers() { return allVisiblePayers().filter(payer => payer.active !== false); }
+
+  function clientDefinitionForPayer(payer) {
+    const payerName = normalizeClientName(payer.name); const linkedCode = normalizeClientName(payer.clientCode || '');
+    return (window.PAYMENT_HISTORY_IMPORT || []).find(client => {
+      const code = normalizeClientName(client.clientCode); const aliases = [client.clientCode,client.realName,...(CLIENT_ALIASES[code] || [])].map(normalizeClientName);
+      return linkedCode ? code === linkedCode : aliases.some(alias => alias === payerName || (alias.length >= 4 && payerName.includes(alias)) || (payerName.length >= 4 && alias.includes(payerName)));
+    }) || null;
+  }
+
+  function historicalDueForPayment(payer,paymentDate) {
+    const paidOn = parseLocalDate(paymentDate); const week = startOfWeek(paidOn); const previousWeek = new Date(week); previousWeek.setDate(previousWeek.getDate()-7); const nextWeek = new Date(week); nextWeek.setDate(nextWeek.getDate()+7);
+    return [dueDate(payer,previousWeek),dueDate(payer,week),dueDate(payer,nextWeek)].sort((a,b) => Math.abs(a-paidOn)-Math.abs(b-paidOn) || a-b)[0];
+  }
+
+  function importedRecordsForPayer(payer) {
+    const client = clientDefinitionForPayer(payer); if (!client) return [];
+    return (state.paymentHistory || []).filter(record => normalizeClientName(record.clientCode) === normalizeClientName(client.clientCode)).map(record => {
+      const due = historicalDueForPayment(payer,record.paymentDate);
+      const payment = { status:'paid', received:Number(record.amount), receivedDate:record.paymentDate, dueDate:localDate(due), notes:'', imported:true, type:'payment' }; payment.paidLate = isPaymentLate(payment,due); return { key:weekKey(due), payment };
+    });
+  }
+
+  function importedPaymentFor(payer,key) {
+    return importedRecordsForPayer(payer).find(item => item.key === key)?.payment || { status:'unpaid', received:0, notes:'' };
+  }
+
+  function recordsFor(payer) {
+    const combined = new Map(); const imported = importedRecordsForPayer(payer);
+    imported.forEach(item => combined.set(`${item.payment.receivedDate}|${item.payment.received}`,item));
+    const cutoff = imported.map(item => item.payment.receivedDate).sort().pop() || '';
+    localRecordsFor(payer).filter(item => item.payment.status === 'paid' && item.payment.receivedDate && (!cutoff || item.payment.receivedDate > cutoff)).forEach(item => combined.set(`${item.payment.receivedDate}|${Number(item.payment.received) || 0}`,item));
+    return [...combined.values()];
+  }
+
+  function recomputeLateCount(payer) {
+    payer.lateCount = localRecordsFor(payer).filter(item => item.payment.status === 'paid' && item.payment.paidLate === true).length;
+  }
+
+  function normalizeClientName(value = '') { return String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toUpperCase(); }
+
+  function importPaymentHistory() {
+    if (!Array.isArray(state.paymentHistory)) state.paymentHistory = [];
+    const existing = new Set(state.paymentHistory.map(record => record.id)); let changed = false;
+    (window.PAYMENT_HISTORY_IMPORT || []).forEach(client => {
+      client.payments.forEach(([paymentDate, amount]) => {
+        const id = `history-${normalizeClientName(client.clientCode)}-${paymentDate}-${amount}`;
+        if (existing.has(id)) return;
+        state.paymentHistory.push({ id, clientCode: client.clientCode, realName: client.realName, paymentDate, amount, type: 'payment', source: 'historical-import-v1' });
+        existing.add(id); changed = true;
+      });
+    });
+    return changed;
+  }
+
+  function migrateState() {
+    let changed = state.dataVersion !== DATA_VERSION;
+    state.settings = { notifications: false, lastNotificationDate: '', lastBackupAt: '', ...(state.settings || {}) };
+    if (importPaymentHistory()) changed = true;
+
+    state.payers.forEach(payer => {
+      if (!payer.clientCode) { const client = clientDefinitionForPayer(payer); if (client) { payer.clientCode = client.clientCode; changed = true; } }
+      if (!Array.isArray(payer.termsHistory) || !payer.termsHistory.length) { payer.termsHistory = [{ effectiveWeek:'1970-01-05',amount:Number(payer.amount),day:Number(payer.day),createdAt:new Date().toISOString() }]; changed = true; }
+      if (payer.active === undefined) { payer.active = true; changed = true; }
+      if (!Array.isArray(payer.penalties)) { payer.penalties = []; changed = true; }
+      const records = directLocalRecordsFor(payer);
+      records.forEach(({ key, payment }) => {
+        const due = dueDate(payer, parseLocalDate(key));
+        if (!payment.dueDate) { payment.dueDate = localDate(due); changed = true; }
+        if (payment.status === 'paid') {
+          const paidOn = payment.receivedDate || (payment.updatedAt ? localDate(new Date(payment.updatedAt)) : payment.dueDate);
+          if (!payment.receivedDate) { payment.receivedDate = paidOn; changed = true; }
+          const late = isPaymentLate(payment,parseLocalDate(payment.dueDate));
+          if (payment.paidLate !== late) { payment.paidLate = late; changed = true; }
+        }
+      });
+
+      records.forEach(({ key, payment }) => {
+        if (payment.ledgerVersion || payment.status !== 'paid' || !payment.receivedDate) return;
+        const paidOn = parseLocalDate(payment.receivedDate);
+        const recordedDue = parseLocalDate(payment.dueDate) || dueDate(payer, parseLocalDate(key));
+
+        if (paidOn < recordedDue) {
+          const previousDue = new Date(recordedDue); previousDue.setDate(previousDue.getDate() - 7);
+          const previousKey = weekKey(previousDue);
+          const previousRecord = state.payments[previousKey]?.[payer.id];
+
+          if (!previousRecord || previousRecord.status !== 'paid') {
+            state.payments[previousKey] ||= {};
+            state.payments[previousKey][payer.id] = {
+              ...payment,
+              dueDate: localDate(previousDue),
+              paidLate: isPaymentLate(payment,previousDue),
+              ledgerVersion: DATA_VERSION,
+              migratedFromWeek: key
+            };
+            delete state.payments[key][payer.id];
+            changed = true;
+            return;
+          }
+        }
+
+        payment.ledgerVersion = DATA_VERSION;
+        changed = true;
+      });
+
+      if (!payer.trackingStartDate) {
+        if (records.length) {
+          payer.trackingStartDate = records.map(item => item.payment.dueDate || localDate(dueDate(payer, parseLocalDate(item.key)))).sort()[0];
+        } else if (payer.lastPaymentDate) {
+          const dayAfter = parseLocalDate(payer.lastPaymentDate); dayAfter.setDate(dayAfter.getDate() + 1); payer.trackingStartDate = localDate(dayAfter);
+        } else {
+          payer.trackingStartDate = localDate(payer.createdAt ? new Date(payer.createdAt) : new Date());
+        }
+        changed = true;
+      }
+
+      if (payer.lastPaymentDate === undefined) {
+        const latestPaid = records.filter(item => item.payment.status === 'paid').sort((a, b) => (b.payment.receivedDate || '').localeCompare(a.payment.receivedDate || ''))[0];
+        payer.lastPaymentDate = latestPaid?.payment.receivedDate || '';
+        changed = true;
+      }
+
+      const oldCount = payer.lateCount;
+      recomputeLateCount(payer);
+      if (oldCount !== payer.lateCount) changed = true;
+    });
+
+    state.dataVersion = DATA_VERSION;
+    if (changed) saveState();
+  }
+
+  function dueInstancesThrough(payer, throughDate) {
+    const start = parseLocalDate(payer.trackingStartDate) || new Date();
+    const through = new Date(throughDate); through.setHours(0, 0, 0, 0);
+    const dates = []; const cursor = startOfWeek(start);
+    while (cursor <= through && dates.length < 520) { const due = dueDate(payer,cursor); if (due >= start && due <= through) dates.push(due); cursor.setDate(cursor.getDate() + 7); }
+    return dates;
+  }
+
+  function overdueDates(payer, now = new Date()) {
+    const today = new Date(now); today.setHours(0, 0, 0, 0);
+    return dueInstancesThrough(payer, today).filter(date => deadlineFor(date) < now && paymentFor(payer.id, weekKey(date)).status !== 'paid');
+  }
+
+  function pendingItems(payer, now = new Date()) {
+    const today = new Date(now); today.setHours(0, 0, 0, 0);
+    return dueInstancesThrough(payer, today).map(due => {
+      const key = weekKey(due); const payment = paymentFor(payer.id, key);
+      return { payer, due, key, payment, remaining: Math.max(0, amountForWeek(payer,due) - (Number(payment.received) || 0)) };
+    }).filter(item => item.payment.status !== 'paid' && item.remaining > 0);
+  }
+
+  function waitingItemsThisWeek(now = new Date()) {
+    const today = new Date(now); today.setHours(0, 0, 0, 0); const start = startOfWeek(now); const key = weekKey(start);
+    return visiblePayers().map(payer => { const due = dueDate(payer, start); const payment = paymentFor(payer.id, key); return { payer, due, key, payment, remaining: Math.max(0, amountForWeek(payer,start) - (Number(payment.received) || 0)) }; }).filter(item => item.due > today && item.payment.status !== 'paid' && item.remaining > 0).sort((a, b) => a.due - b.due || a.payer.name.localeCompare(b.payer.name));
+  }
+
+  function receivedItemsThisWeek() {
+    const start = startOfWeek(); const end = new Date(start); end.setDate(end.getDate() + 7); const startKey = localDate(start); const endKey = localDate(end);
+    return visiblePayers().flatMap(payer => recordsFor(payer).map(({ key, payment }) => ({ payer, due: parseLocalDate(payment.dueDate) || dueDate(payer, parseLocalDate(key)), key, payment, received: Number(payment.received) || 0 }))).filter(item => item.received > 0 && item.payment.receivedDate >= startKey && item.payment.receivedDate < endKey).sort((a, b) => (b.payment.receivedDate || '').localeCompare(a.payment.receivedDate || '') || a.payer.name.localeCompare(b.payer.name));
+  }
+
+  function currentWeekPaid(payer) { return paymentFor(payer.id, weekKey()).status === 'paid'; }
+
+  function situation(payer) {
+    const now = new Date(); const overdue = overdueDates(payer,now);
+    if (overdue.length) return { late: overdue.length, since: overdue[0], text: `${overdue.length} ${overdue.length === 1 ? 'semana atrasado' : 'semanas atrasado'}`, className: '' };
+    const today = new Date(now); today.setHours(0,0,0,0); const grace = dueInstancesThrough(payer,today).find(due => due < today && deadlineFor(due) >= now && paymentFor(payer.id,weekKey(due)).status !== 'paid');
+    if (grace) return { late:0,grace:true,since:grace,text:'Em tolerância até 12h',className:'grace' };
+    if (Number(termsForWeek(payer).day) === new Date().getDay() && !currentWeekPaid(payer)) return { late: 0, since: null, text: 'Vence hoje', className: '' };
+    return { late: 0, since: null, text: 'Em dia', className: 'current' };
+  }
+
+  function pendingPayers() {
+    return visiblePayers().filter(payer => pendingItems(payer).length > 0);
+  }
+
+  function scoreFor(payer) {
+    const manual = (payer.penalties || []).reduce((sum, penalty) => sum + Number(penalty.points || 0), 0);
+    const delayPenalty = (payer.lateCount || 0) * 10;
+    const value = Math.max(0, Math.min(100, 100 - manual - delayPenalty));
+    const label = value >= 90 ? 'EXCELENTE' : value >= 75 ? 'ÓTIMO' : value >= 60 ? 'BOM' : value >= 40 ? 'RUIM' : 'RISCO DE PERDER A PARCERIA';
+    const className = value >= 90 ? 'excellent' : value >= 75 ? 'great' : value >= 60 ? 'good' : value >= 40 ? 'bad' : 'critical';
+    return { value, label, className, manual, delayPenalty };
+  }
+
+  function defaultPaymentWeek(payer) {
+    const overdue = overdueDates(payer);
+    return overdue.length ? weekKey(overdue[0]) : weekKey();
+  }
+
+  function card(payer, mode = 'payment') {
+    const auto = situation(payer); const payment = paymentFor(payer.id); const notes = payment.notes || payer.notes;
+    const currentTerms = termsForWeek(payer);
+    const historyText = auto.late ? `Pendente desde ${formatFull(auto.since)} · já atrasou ${payer.lateCount || 0} ${(payer.lateCount || 0) === 1 ? 'vez' : 'vezes'}` : auto.text;
+    const currentDue = dueDate(payer); const today = new Date(); today.setHours(0, 0, 0, 0);
+    const timer = auto.late ? timerMarkup('overdue', auto.since) : auto.grace ? timerMarkup('countdown',auto.since) : (currentDue >= today && payment.status !== 'paid' ? timerMarkup('countdown', currentDue) : '');
+    return `<article class="payment-card ${auto.late ? 'overdue' : ''} ${auto.className === 'current' ? 'paid' : ''}">
+      <div><h3><button class="payer-link" data-profile="${payer.id}">${escapeHtml(payer.name)}</button></h3><div class="payment-meta"><span>${DAYS[currentTerms.day]}</span><span>Vence ${formatShort(dueDate(payer))}</span><span>${scoreFor(payer).label} · ${scoreFor(payer).value}</span></div><span class="delay-label ${auto.className}">${historyText}</span>${timer}${notes ? `<p class="payment-notes">${escapeHtml(notes)}</p>` : ''}</div>
+      <div class="amount"><strong>${money(amountForWeek(payer))}</strong>${mode === 'payment' ? `<span class="status-badge status-${payment.status}">${statusLabel(payment.status)}</span>` : `<span class="payment-notes">Último:<br>${formatDate(lastReceivedForPayer(payer))}</span>`}</div>
+      <div class="card-actions">${mode === 'payment' ? `<button data-payment="${payer.id}" data-week="${defaultPaymentWeek(payer)}">Registrar recebimento</button>` : `<button data-edit="${payer.id}">Editar</button><button class="delete" data-delete="${payer.id}">Excluir</button>`}</div>
+    </article>`;
+  }
+
+  function scheduleCard(payer, weekStart, label) {
+    const key = weekKey(weekStart); const due = dueDate(payer, weekStart); const payment = paymentFor(payer.id, key);
+    const terms = termsForWeek(payer,weekStart);
+    return `<article class="payment-card ${payment.status === 'paid' ? 'paid' : ''}">
+      <div><h3><button class="payer-link" data-profile="${payer.id}">${escapeHtml(payer.name)}</button></h3><div class="payment-meta"><span>${DAYS[terms.day]}</span><span>${formatFull(due)}</span><span>${scoreFor(payer).label} · ${scoreFor(payer).value}</span></div><span class="schedule-label">${label}</span><br>${timerMarkup('countdown', due)}</div>
+      <div class="amount"><strong>${money(amountForWeek(payer,weekStart))}</strong><span class="status-badge status-${payment.status}">${statusLabel(payment.status)}</span></div>
+      <div class="card-actions"><button data-payment="${payer.id}" data-week="${key}">Registrar recebimento</button></div>
+    </article>`;
+  }
+
+  function empty(message) { return `<div class="empty">${message}</div>`; }
+
+  function renderDashboard() {
+    const now = new Date(); const today = now.getDay(); const currentStart = startOfWeek(now); const nextStart = new Date(currentStart); nextStart.setDate(nextStart.getDate() + 7);
+    const payers = visiblePayers();
+    const todayItems = payers.filter(p => p.day === today);
+    const overdueItems = payers.filter(p => overdueDates(p, now).length > 0).sort((a, b) => situation(a).since - situation(b).since);
+    const upcoming = [];
+    payers.forEach(payer => {
+      const currentDue = dueDate(payer, currentStart);
+      if (currentDue >= new Date(now.getFullYear(), now.getMonth(), now.getDate()) && paymentFor(payer.id, weekKey(currentStart)).status !== 'paid') upcoming.push({ payer, start: currentStart, due: currentDue, label: 'Esta semana' });
+      if (paymentFor(payer.id, weekKey(nextStart)).status !== 'paid') upcoming.push({ payer, start: nextStart, due: dueDate(payer, nextStart), label: 'Próxima semana' });
+    });
+    upcoming.sort((a, b) => a.due - b.due || a.payer.name.localeCompare(b.payer.name));
+
+    $('todayList').innerHTML = todayItems.length ? todayItems.map(p => card(p)).join('') : empty('Nenhum pagamento vence hoje.');
+    $('overdueList').innerHTML = overdueItems.length ? overdueItems.map(p => card(p)).join('') : empty('Tudo em dia por aqui.');
+    $('upcomingList').innerHTML = upcoming.length ? upcoming.map(item => scheduleCard(item.payer, item.start, item.label)).join('') : empty('Nenhum pagamento programado para esta ou a próxima semana.');
+    $('todayCount').textContent = todayItems.length || ''; $('overdueCount').textContent = overdueItems.length || ''; $('upcomingCount').textContent = upcoming.length || '';
+  }
+
+  function renderSummary() {
+    const expected = waitingItemsThisWeek().reduce((sum, item) => sum + item.remaining, 0);
+    const received = receivedItemsThisWeek().reduce((sum, item) => sum + item.received, 0);
+    const pending = visiblePayers().flatMap(payer => pendingItems(payer)).reduce((sum, item) => sum + item.remaining, 0);
+    $('totalExpected').textContent = money(expected); $('totalReceived').textContent = money(received); $('totalPending').textContent = money(pending);
+    const start = startOfWeek(); const end = new Date(start); end.setDate(end.getDate() + 6); $('weekLabel').textContent = `${formatShort(start)} — ${formatShort(end)}`;
+  }
+
+  function renderPayers() {
+    const matches = payer => !payerSearchTerm || normalizeClientName(payer.name).includes(normalizeClientName(payerSearchTerm));
+    const payers = visiblePayers().filter(matches); $('payerCount').textContent = payers.length || '';
+    $('payersList').innerHTML = payers.length ? payers.slice().sort((a, b) => a.day - b.day).map(p => card(p, 'payer')).join('') : empty('Cadastre seu primeiro pagador no botão +.');
+    const inactive = allVisiblePayers().filter(payer => payer.active === false && matches(payer)).sort((a,b) => a.name.localeCompare(b.name));
+    $('inactivePayerCount').textContent = inactive.length || '';
+    $('inactivePayersList').innerHTML = inactive.length ? inactive.map(inactiveCard).join('') : empty('Nenhum pagador inativo.');
+  }
+
+  function inactiveCard(payer) {
+    const stats = payerStats(payer); const lastReceived = lastReceivedForPayer(payer);
+    return `<article class="payment-card inactive-card"><div><h3><button class="payer-link" data-profile="${payer.id}">${escapeHtml(payer.name)}</button></h3><div class="payment-meta"><span>Inativo</span><span>${stats.total} pagamento${stats.total === 1 ? '' : 's'}</span><span>Último: ${formatDate(lastReceived)}</span></div><span class="delay-label current">Histórico preservado</span></div><div class="amount"><strong>${money(stats.totalAmount)}</strong><span class="status-badge">Total pago</span></div><div class="card-actions"><button data-profile="${payer.id}">Ver histórico</button></div></article>`;
+  }
+
+  function payerStats(payer) {
+    const paid = recordsFor(payer).filter(item => item.payment.status === 'paid').sort((a,b) => (a.payment.receivedDate || '').localeCompare(b.payment.receivedDate || ''));
+    const late = paid.filter(item => item.payment.paidLate).length;
+    const totalAmount = paid.reduce((sum,item) => sum + (Number(item.payment.received) || 0),0);
+    const onTime = paid.length-late; const percentage = paid.length ? Math.round(onTime/paid.length*100) : null;
+    const reliability = percentage === null ? 'Sem histórico' : percentage === 100 ? 'Excelente' : percentage >= 95 ? 'Muito Bom' : percentage >= 85 ? 'Bom' : percentage >= 70 ? 'Atenção' : 'Risco';
+    const half = Math.floor(paid.length/2); const older = paid.slice(0,half); const recent = paid.slice(half); const olderRate = older.length ? older.filter(item => !item.payment.paidLate).length/older.length : null; const recentRate = recent.length ? recent.filter(item => !item.payment.paidLate).length/recent.length : null;
+    const trend = olderRate === null || recentRate === null ? 'Dados insuficientes' : recentRate > olderRate+.05 ? 'Melhorando' : recentRate < olderRate-.05 ? 'Piorando' : 'Estável';
+    return { total:paid.length,totalAmount,onTime,late,delays:late,percentage,reliability,trend };
+  }
+
+  function lastReceivedForPayer(payer) {
+    return recordsFor(payer).filter(item => item.payment.status === 'paid' && item.payment.receivedDate).map(item => item.payment.receivedDate).sort().pop() || payer.lastPaymentDate;
+  }
+
+  function renderHistory() {
+    const payers = visiblePayers(); $('payerHistoryStats').innerHTML = payers.length ? payers.map(payer => {
+      const stats = payerStats(payer);
+      const punctuality = stats.percentage === null ? '—' : `${stats.percentage}%`;
+      return `<article class="payer-stats-card"><div class="payer-stats-header"><h3><button class="payer-link" data-profile="${payer.id}">${escapeHtml(payer.name)}</button></h3><span class="late-count ${stats.percentage !== null && stats.percentage >= 85 ? 'zero' : ''}">${stats.reliability}</span></div><div class="stats-grid"><div class="stat"><strong>${stats.total}</strong><span>Pagamentos feitos</span></div><div class="stat"><strong>${money(stats.totalAmount)}</strong><span>Total pago</span></div><div class="stat"><strong>${stats.onTime}</strong><span>Pagos em dia</span></div><div class="stat"><strong>${stats.late}</strong><span>Atrasos</span></div><div class="stat"><strong>${punctuality}</strong><span>Pontualidade</span></div></div></article>`;
+    }).join('') : empty('Cadastre pagadores para acompanhar o histórico individual.');
+
+    const weeks = []; for (let i = 0; i < 8; i += 1) { const d = startOfWeek(); d.setDate(d.getDate() - 7 * i); weeks.push(d); }
+    $('historyList').innerHTML = weeks.map((start, index) => {
+      const key = weekKey(start); const end = new Date(start); end.setDate(end.getDate() + 6);
+      const entries = payers.map(payer => ({ payer, payment: paymentFor(payer.id, key) }));
+      const expected = entries.reduce((sum, item) => sum + amountForWeek(item.payer,start), 0);
+      const received = entries.reduce((sum, item) => sum + Math.min(amountForWeek(item.payer,start), Number(item.payment.received) || 0), 0);
+      const items = entries.map(item => { const paidText = item.payment.status === 'paid' ? (item.payment.paidLate ? 'Pago atrasado' : 'Pago em dia') : statusLabel(item.payment.status); return `<div class="history-item ${item.payment.paidLate || item.payment.status !== 'paid' ? 'late' : ''}"><span>${escapeHtml(item.payer.name)} · ${paidText}</span><strong>${money(item.payment.received)}</strong></div>`; }).join('') || '<div class="history-item"><span>Sem pagadores</span></div>';
+      return `<details class="history-card" ${index === 0 ? 'open' : ''}><summary><div><strong>${index === 0 ? 'Semana atual' : `${formatShort(start)} — ${formatShort(end)}`}</strong></div><div class="history-totals">Recebido<strong>${money(received)} / ${money(expected)}</strong></div></summary><div class="history-items">${items}</div></details>`;
+    }).join('');
+  }
+
+  function renderPendingDetails() {
+    const items = visiblePayers().flatMap(payer => pendingItems(payer)).sort((a, b) => a.due - b.due || a.payer.name.localeCompare(b.payer.name));
+    const now = new Date(); const today = new Date(now); today.setHours(0, 0, 0, 0);
+    $('pendingDetailList').innerHTML = items.length ? items.map(item => { const overdue = deadlineFor(item.due) < now; const grace = item.due < today && !overdue; const text = overdue ? 'Venceu' : grace ? 'Em tolerância desde' : 'Vence'; return `<article class="detail-item ${overdue ? 'late' : ''}"><div class="detail-item-main"><strong><button class="payer-link" data-profile="${item.payer.id}">${escapeHtml(item.payer.name)}</button></strong><span>${text} ${formatFull(item.due)} · ${money(item.remaining)} pendente</span>${timerMarkup(overdue ? 'overdue' : 'countdown', item.due)}</div><button data-payment="${item.payer.id}" data-week="${item.key}">Atualizar</button></article>`; }).join('') : empty('Nenhum pagamento pendente. Tudo em dia!');
+    updateTimers();
+  }
+
+  function openPendingDetails() {
+    renderPendingDetails();
+    $('pendingDialog').showModal();
+  }
+
+  function renderWaitingDetails() {
+    const items = waitingItemsThisWeek();
+    $('waitingDetailList').innerHTML = items.length ? items.map(item => `<article class="detail-item"><div class="detail-item-main"><strong><button class="payer-link" data-profile="${item.payer.id}">${escapeHtml(item.payer.name)}</button></strong><span>Vence ${formatFull(item.due)} · ${money(item.remaining)} esperando</span>${timerMarkup('countdown', item.due)}</div><button data-payment="${item.payer.id}" data-week="${item.key}">Atualizar</button></article>`).join('') : empty('Nenhum pagamento aguardando nesta semana.');
+    updateTimers();
+  }
+
+  function openWaitingDetails() {
+    renderWaitingDetails();
+    $('waitingDialog').showModal();
+  }
+
+  function renderReceivedDetails() {
+    const items = receivedItemsThisWeek();
+    $('receivedDetailList').innerHTML = items.length ? items.map(item => { const label = item.payment.status === 'paid' ? (item.payment.paidLate ? 'Pago atrasado' : 'Pago em dia') : 'Pago parcialmente'; return `<article class="detail-item ${item.payment.paidLate ? 'late' : ''}"><div class="detail-item-main"><strong><button class="payer-link" data-profile="${item.payer.id}">${escapeHtml(item.payer.name)}</button></strong><span>${money(item.received)} · ${label}</span><small>Recebido em ${formatDate(item.payment.receivedDate)} · vencimento ${formatFull(item.due)}</small></div></article>`; }).join('') : empty('Nenhum pagamento recebido nesta semana.');
+  }
+
+  function openReceivedDetails() {
+    renderReceivedDetails();
+    $('receivedDialog').showModal();
+  }
+
+  function renderProfile(payer) {
+    const active = payer.active !== false; const score = scoreFor(payer); const stats = payerStats(payer); const pending = active ? pendingItems(payer) : []; const pendingValue = pending.reduce((sum, item) => sum + item.remaining, 0);
+    const lastReceived = recordsFor(payer).filter(item => item.payment.status === 'paid' && item.payment.receivedDate).map(item => item.payment.receivedDate).sort().pop() || payer.lastPaymentDate;
+    $('profilePayerId').value = payer.id; $('profileName').textContent = payer.name; $('profileScore').textContent = score.value; $('profileScoreLabel').textContent = score.label;
+    $('profileScoreCard').className = `score-card ${score.className}`;
+    const today = new Date(); today.setHours(0, 0, 0, 0); const currentStart = startOfWeek(); const nextStart = new Date(currentStart); nextStart.setDate(nextStart.getDate() + 7);
+    const nextOpen = active ? [currentStart, nextStart].map(start => ({ due: dueDate(payer, start), key: weekKey(start) })).filter(item => item.due >= today && paymentFor(payer.id, item.key).status !== 'paid').sort((a, b) => a.due - b.due)[0] : null;
+    const clock = !active ? 'Cadastro inativo' : pending[0] ? timerMarkup(deadlineFor(pending[0].due) < new Date() ? 'overdue' : 'countdown', pending[0].due) : (nextOpen ? timerMarkup('countdown', nextOpen.due) : 'Sem prazo aberto');
+    const punctuality = stats.percentage === null ? '—' : `${stats.percentage}%`;
+    const currentTerms = termsForWeek(payer);
+    $('profileOverview').innerHTML = `<div class="profile-fact"><span>Status</span><strong>${active ? 'Ativo' : 'Inativo'}</strong></div><div class="profile-fact"><span>Valor semanal</span><strong>${money(currentTerms.amount)}</strong></div><div class="profile-fact"><span>Vencimento</span><strong>${DAYS[currentTerms.day]}</strong></div><div class="profile-fact"><span>Último recebimento</span><strong>${formatDate(lastReceived)}</strong></div><div class="profile-fact"><span>Pendente agora</span><strong>${money(pendingValue)}</strong></div><div class="profile-fact"><span>Pagamentos feitos</span><strong>${stats.total}</strong></div><div class="profile-fact"><span>Total pago</span><strong>${money(stats.totalAmount)}</strong></div><div class="profile-fact"><span>Atrasos</span><strong>${stats.late}</strong></div><div class="profile-fact"><span>Pontualidade</span><strong>${punctuality}</strong></div><div class="profile-fact"><span>Confiabilidade</span><strong>${stats.reliability}</strong></div><div class="profile-fact"><span>Tendência</span><strong>${stats.trend}</strong></div><div class="profile-fact"><span>Relógio do prazo</span><strong>${clock}</strong></div>`;
+    $('togglePayerStatusBtn').textContent = active ? 'Tornar inativo' : 'Reativar pagador'; $('togglePayerStatusBtn').classList.toggle('reactivate', !active);
+
+    const records = recordsFor(payer).sort((a, b) => (b.payment.dueDate || b.key).localeCompare(a.payment.dueDate || a.key));
+    $('profilePayments').innerHTML = records.length ? records.map(({ key, payment }) => {
+      const due = parseLocalDate(payment.dueDate) || dueDate(payer, parseLocalDate(key));
+      const label = payment.status === 'paid' ? (payment.paidLate ? 'Pago atrasado' : 'Pago em dia') : statusLabel(payment.status);
+      const dateText = payment.receivedDate ? `Recebido em ${formatDate(payment.receivedDate)}` : 'Ainda não recebido';
+      return `<article class="detail-item ${payment.paidLate ? 'late' : ''}"><div class="detail-item-main"><strong>${label} · ${money(payment.received)}</strong><span>Vencimento ${formatFull(due)} · ${dateText}</span></div></article>`;
+    }).join('') : empty('Ainda não há pagamentos registrados para esta pessoa.');
+
+    const penalties = (payer.penalties || []).slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    $('profilePenalties').innerHTML = penalties.length ? penalties.map(penalty => `<article class="detail-item late"><div class="detail-item-main"><strong>-${Number(penalty.points)} pontos · ${escapeHtml(penalty.reason)}</strong><span>${formatDate(localDate(new Date(penalty.createdAt)))}</span></div><button class="delete" data-remove-penalty="${penalty.id}" data-payer="${payer.id}">Remover</button></article>`).join('') : empty('Nenhuma punição manual registrada.');
+    updateTimers();
+  }
+
+  function openProfile(id) {
+    const payer = state.payers.find(item => item.id === id); if (!payer) return;
+    if ($('pendingDialog').open) $('pendingDialog').close();
+    if ($('waitingDialog').open) $('waitingDialog').close();
+    if ($('receivedDialog').open) $('receivedDialog').close();
+    renderProfile(payer);
+    if (!$('profileDialog').open) $('profileDialog').showModal();
+  }
+
+  function togglePayerStatus() {
+    const payer = state.payers.find(item => item.id === $('profilePayerId').value); if (!payer) return;
+    const active = payer.active === false;
+    relatedPayers(payer).forEach(item => { item.active = active; item.statusChangedAt = new Date().toISOString(); });
+    saveState(); renderAll(); renderProfile(payer); showToast(active ? 'Pagador reativado.' : 'Pagador movido para inativos.');
+  }
+
+  function editProfilePayer() {
+    const id = $('profilePayerId').value; if (!id) return;
+    $('profileDialog').close(); openPayer(id);
+  }
+
+  function renderNotificationStatus() {
+    const button = $('notificationBtn'); const isLocalhost = ['localhost','127.0.0.1'].includes(location.hostname); const secure = window.isSecureContext || isLocalhost;
+    const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent); const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    if (!secure) { button.disabled = true; button.textContent = 'Requer HTTPS'; $('notificationStatus').textContent = 'No celular, notificações exigem que o PWA esteja publicado em um endereço HTTPS.'; return; }
+    if (isIos && !standalone) { button.disabled = true; button.textContent = 'Instale primeiro'; $('notificationStatus').textContent = 'No iPhone, adicione o app à Tela de Início e abra pelo ícone instalado.'; return; }
+    const supported = 'Notification' in window && 'serviceWorker' in navigator;
+    if (!supported) { button.disabled = true; button.textContent = 'Indisponível'; $('notificationStatus').textContent = 'Este navegador ou versão do sistema não oferece notificações para este PWA.'; return; }
+    button.disabled = false;
+    const enabled = state.settings?.notifications && Notification.permission === 'granted';
+    button.textContent = enabled ? 'Desativar' : 'Ativar'; button.classList.toggle('enabled', enabled);
+    $('notificationStatus').textContent = enabled ? `${pendingPayers().length} pendente(s) agora. O aviso funciona às 9h com o app aberto ou ao reabri-lo.` : 'Receba um aviso com a quantidade de pagamentos pendentes.';
+  }
+
+  function renderBackupStatus() { const value = state.settings?.lastBackupAt; $('backupStatus').textContent = value ? `Último backup: ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value))}.` : 'Nenhum backup registrado.'; }
+
+  function renderAll() { renderSummary(); renderDashboard(); renderPayers(); renderHistory(); renderNotificationStatus(); renderBackupStatus(); updateTimers(); }
+
+  function openPayer(id) {
+    const payer = state.payers.find(p => p.id === id);
+    $('payerDialogTitle').textContent = payer ? 'Editar pagador' : 'Novo pagador'; $('payerId').value = payer?.id || ''; $('payerName').value = payer?.name || '';
+    $('payerAmount').value = payer ? Number(payer.amount).toFixed(2).replace('.', ',') : ''; $('payerDay').value = payer?.day ?? new Date().getDay(); $('payerTermsEffective').value = localDate(); $('payerLastPayment').value = payer?.lastPaymentDate || ''; $('payerNotes').value = payer?.notes || ''; $('payerDialog').showModal();
+  }
+
+  function paymentOptions(payer, preferredKey) {
+    const options = new Map();
+    overdueDates(payer).forEach(date => options.set(weekKey(date), date));
+    const currentStart = startOfWeek(); if (paymentFor(payer.id, weekKey(currentStart)).status !== 'paid') options.set(weekKey(currentStart), dueDate(payer, currentStart));
+    if (preferredKey) options.set(preferredKey, dueDate(payer, parseLocalDate(preferredKey)));
+    return [...options].map(([key, due]) => ({ key, due })).sort((a, b) => a.due - b.due);
+  }
+
+  function updatePaymentExpected() {
+    const payer = state.payers.find(p => p.id === $('paymentPayerId').value); if (!payer) return;
+    const key = $('paymentDueWeek').value; const due = dueDate(payer, parseLocalDate(key)); const record = paymentFor(payer.id, key);
+    $('paymentExpected').textContent = `Valor esperado: ${money(amountForWeek(payer,parseLocalDate(key)))} · vencimento ${formatFull(due)}${record.paidLate ? ' · pago com atraso' : ''}`;
+    document.querySelector(`[name="status"][value="${record.status || 'unpaid'}"]`).checked = true;
+    $('paymentDate').value = record.receivedDate || localDate(); $('paymentTime').value = record.receivedTime || (record.status === 'paid' ? '12:00' : new Date().toTimeString().slice(0,5)); $('receivedAmount').value = record.received ? Number(record.received).toFixed(2).replace('.', ',') : ''; $('paymentNotes').value = record.notes || ''; toggleReceivedField();
+  }
+
+  function openPayment(id, preferredKey) {
+    const payer = state.payers.find(p => p.id === id); if (!payer) return;
+    $('paymentPayerId').value = id; $('paymentPayerName').textContent = payer.name;
+    const options = paymentOptions(payer, preferredKey); $('paymentDueWeek').innerHTML = options.map(item => `<option value="${item.key}">${formatFull(item.due)}${item.due < new Date(new Date().setHours(0, 0, 0, 0)) ? ' — atrasado' : ''}</option>`).join('');
+    $('paymentDueWeek').value = preferredKey && options.some(item => item.key === preferredKey) ? preferredKey : options[0].key;
+    updatePaymentExpected(); $('paymentDialog').showModal();
+  }
+
+  function toggleReceivedField() { const status = document.querySelector('[name="status"]:checked')?.value; $('receivedAmountLabel').hidden = status === 'unpaid'; $('paymentDateLabel').hidden = status === 'unpaid'; $('paymentTimeLabel').hidden = status === 'unpaid'; }
+
+  async function sendDailyNotification() {
+    if (!state.settings?.notifications || Notification.permission !== 'granted') return;
+    const pending = pendingPayers(); const names = pending.slice(0, 3).map(p => p.name).join(', ');
+    const body = pending.length ? `${pending.length} pagamento${pending.length === 1 ? '' : 's'} pendente${pending.length === 1 ? '' : 's'}${names ? `: ${names}${pending.length > 3 ? '…' : ''}` : '.'}` : 'Nenhum pagamento pendente. Tudo em dia!';
+    const registration = await navigator.serviceWorker.ready; await registration.showNotification('Recebimentos das 9h', { body, icon: './icon.svg', badge: './icon.svg', tag: 'daily-payments', renotify: true });
+    state.settings.lastNotificationDate = localDate(); saveState();
+  }
+
+  function checkDailyNotification() { if (!state.settings?.notifications || Notification.permission !== 'granted') return; const now = new Date(); if (now.getHours() >= 9 && state.settings.lastNotificationDate !== localDate(now)) sendDailyNotification().catch(() => showToast('Não foi possível mostrar a notificação.')); }
+  function scheduleNotification() { clearTimeout(notificationTimer); if (!state.settings?.notifications || Notification.permission !== 'granted') return; checkDailyNotification(); const now = new Date(); const next = new Date(now); next.setHours(9, 0, 0, 0); if (next <= now) next.setDate(next.getDate() + 1); notificationTimer = setTimeout(() => { sendDailyNotification().finally(scheduleNotification); }, next - now); }
+  async function toggleNotifications() { state.settings ||= { notifications: false, lastNotificationDate: '' }; if (!window.isSecureContext && !['localhost','127.0.0.1'].includes(location.hostname)) { showToast('Publique o PWA em HTTPS para ativar notificações.'); return; } if (state.settings.notifications) { state.settings.notifications = false; saveState(); scheduleNotification(); renderNotificationStatus(); showToast('Lembrete diário desativado.'); return; } if (!('Notification' in window) || !('serviceWorker' in navigator)) { showToast('Notificações não são compatíveis com este navegador.'); return; } const permission = await Notification.requestPermission(); if (permission !== 'granted') { showToast('Permissão de notificação não concedida.'); renderNotificationStatus(); return; } state.settings.notifications = true; state.settings.lastNotificationDate = ''; saveState(); scheduleNotification(); renderNotificationStatus(); showToast('Lembrete diário ativado para as 9h.'); }
+
+  $('payerForm').addEventListener('submit', event => {
+    event.preventDefault(); const amount = parseMoney($('payerAmount').value); if (!Number.isFinite(amount) || amount <= 0) { showToast('Informe um valor válido.'); return; }
+    const id = $('payerId').value || uid(); const existing = state.payers.find(p => p.id === id); const lastPaymentDate = $('payerLastPayment').value;
+    const newName = $('payerName').value.trim(); const clientCode = existing?.clientCode || clientDefinitionForPayer(existing || { name:newName })?.clientCode || '';
+    const day = Number($('payerDay').value); const trackingStartDate = existing?.trackingStartDate || (() => { if (!lastPaymentDate) return localDate(); const next = parseLocalDate(lastPaymentDate); next.setDate(next.getDate() + 1); return localDate(next); })();
+    const effectiveWeek = weekKey(parseLocalDate($('payerTermsEffective').value) || new Date()); const termsHistory = (existing?.termsHistory || []).slice();
+    if (!existing) termsHistory.push({ effectiveWeek:weekKey(parseLocalDate(trackingStartDate)),amount,day,createdAt:new Date().toISOString() });
+    else if (Number(existing.amount) !== amount || Number(existing.day) !== day) { const index = termsHistory.findIndex(item => item.effectiveWeek === effectiveWeek); const term = { effectiveWeek,amount,day,createdAt:new Date().toISOString() }; if (index >= 0) termsHistory[index] = term; else termsHistory.push(term); }
+    const payer = { id, name: newName, clientCode, amount, day, termsHistory, lastPaymentDate, notes: $('payerNotes').value.trim(), active: existing?.active !== false, createdAt: existing?.createdAt || new Date().toISOString(), trackingStartDate, lateCount: existing?.lateCount || 0 };
+    if (existing) Object.assign(existing, payer); else state.payers.push(payer); saveState(); $('payerDialog').close(); renderAll(); showToast(existing ? 'Pagador atualizado.' : 'Pagador cadastrado.');
+  });
+
+  $('paymentForm').addEventListener('submit', event => {
+    event.preventDefault(); const id = $('paymentPayerId').value; const payer = state.payers.find(p => p.id === id); const key = $('paymentDueWeek').value; const due = dueDate(payer, parseLocalDate(key));
+    const status = document.querySelector('[name="status"]:checked')?.value || 'unpaid'; const receivedDate = status === 'unpaid' ? '' : $('paymentDate').value; const receivedTime = status === 'unpaid' ? '' : ($('paymentTime').value || '12:00'); const receivedAt = receivedDate ? `${receivedDate}T${receivedTime}:00` : ''; let received = status === 'unpaid' ? 0 : parseMoney($('receivedAmount').value);
+    const expectedAmount = amountForWeek(payer,parseLocalDate(key));
+    if (status !== 'unpaid' && !receivedDate) { showToast('Informe a data do recebimento.'); return; } if (status === 'paid') received = Number.isFinite(received) && received > 0 ? received : expectedAmount; if (status === 'partial' && (!Number.isFinite(received) || received <= 0)) { showToast('Informe o valor recebido.'); return; }
+    const payment = { status, received: Math.min(received, expectedAmount), receivedDate, receivedTime, receivedAt, dueDate: localDate(due), paidLate:false, notes: $('paymentNotes').value.trim(), updatedAt: new Date().toISOString(), ledgerVersion: DATA_VERSION }; payment.paidLate = status === 'paid' && isPaymentLate(payment,due);
+    state.payments[key] ||= {}; state.payments[key][id] = payment;
+    if (status === 'paid' && (!payer.lastPaymentDate || receivedDate > payer.lastPaymentDate)) payer.lastPaymentDate = receivedDate;
+    recomputeLateCount(payer); saveState(); $('paymentDialog').close(); renderAll(); showToast(status === 'paid' && state.payments[key][id].paidLate ? 'Pagamento registrado com atraso.' : 'Recebimento atualizado.');
+  });
+
+  $('penaltyForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const payer = state.payers.find(item => item.id === $('profilePayerId').value); const reason = $('penaltyReason').value.trim(); const points = Number($('penaltyPoints').value);
+    if (!payer || !reason || !Number.isFinite(points) || points < 1 || points > 50) { showToast('Informe o motivo e de 1 a 50 pontos.'); return; }
+    payer.penalties ||= []; payer.penalties.push({ id: uid(), reason, points, createdAt: new Date().toISOString() });
+    saveState(); renderAll(); renderProfile(payer); $('penaltyReason').value = ''; $('penaltyPoints').value = '10'; showToast('Punição adicionada ao score.');
+  });
+
+  document.addEventListener('click', event => {
+    const button = event.target.closest('button'); if (!button) return;
+    if (button.id === 'addPayerBtn') openPayer();
+    if (button.id === 'notificationBtn') toggleNotifications();
+    if (button.id === 'editProfilePayerBtn') editProfilePayer();
+    if (button.id === 'togglePayerStatusBtn') togglePayerStatus();
+    if (button.id === 'exportBackupBtn') exportBackup();
+    if (button.id === 'exportCsvBtn') exportCsv();
+    if (button.id === 'importBackupBtn') $('backupFileInput').click();
+    if (button.id === 'pendingSummaryBtn') openPendingDetails();
+    if (button.id === 'waitingSummaryBtn') openWaitingDetails();
+    if (button.id === 'receivedSummaryBtn') openReceivedDetails();
+    if (button.dataset.profile) openProfile(button.dataset.profile);
+    if (button.dataset.edit) openPayer(button.dataset.edit);
+    if (button.dataset.payment) { if ($('pendingDialog').open) $('pendingDialog').close(); if ($('waitingDialog').open) $('waitingDialog').close(); if ($('receivedDialog').open) $('receivedDialog').close(); if ($('profileDialog').open) $('profileDialog').close(); openPayment(button.dataset.payment, button.dataset.week); }
+    if (button.dataset.close) $(button.dataset.close).close();
+    if (button.dataset.removePenalty) { const payer = state.payers.find(item => item.id === button.dataset.payer); const penalty = payer?.penalties?.find(item => item.id === button.dataset.removePenalty); if (payer && penalty && confirm(`Remover a punição “${penalty.reason}”?`)) { payer.penalties = payer.penalties.filter(item => item.id !== penalty.id); saveState(); renderAll(); renderProfile(payer); showToast('Punição removida.'); } }
+    if (button.dataset.delete) { const payer = state.payers.find(p => p.id === button.dataset.delete); if (payer && confirm(`Excluir ${payer.name}? O histórico desse pagador também será removido.`)) { state.payers = state.payers.filter(p => p.id !== payer.id); Object.values(state.payments).forEach(week => delete week[payer.id]); saveState(); renderAll(); showToast('Pagador excluído.'); } }
+    if (button.dataset.tab) { document.querySelectorAll('.tab,.panel').forEach(element => element.classList.remove('active')); button.classList.add('active'); $(`${button.dataset.tab}Panel`).classList.add('active'); }
+  });
+
+  document.querySelectorAll('[name="status"]').forEach(radio => radio.addEventListener('change', () => { const payer = state.payers.find(p => p.id === $('paymentPayerId').value); const key = $('paymentDueWeek').value; if (radio.checked && radio.value === 'paid' && !$('receivedAmount').value) $('receivedAmount').value = amountForWeek(payer,parseLocalDate(key)).toFixed(2).replace('.', ','); toggleReceivedField(); }));
+  $('paymentDueWeek').addEventListener('change', updatePaymentExpected);
+  $('backupFileInput').addEventListener('change', event => importBackup(event.target.files?.[0]));
+  $('payerSearch').addEventListener('input', event => { payerSearchTerm = event.target.value; renderPayers(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderAll(); checkDailyNotification(); } });
+  $('payerDay').innerHTML = DAYS.map((day, index) => `<option value="${index}">${day}</option>`).join('');
+  migrateState(); renderedDay = localDate(); renderAll();
+  setInterval(() => {
+    const today = localDate();
+    if (today !== renderedDay) {
+      renderedDay = today; renderAll();
+      if ($('pendingDialog').open) renderPendingDetails();
+      if ($('waitingDialog').open) renderWaitingDetails();
+      if ($('receivedDialog').open) renderReceivedDetails();
+      if ($('profileDialog').open) { const payer = state.payers.find(item => item.id === $('profilePayerId').value); if (payer) renderProfile(payer); }
+    } else {
+      updateTimers();
+    }
+  }, 30000);
+  if ('serviceWorker' in navigator) window.addEventListener('load', async () => { try { await navigator.serviceWorker.register('./service-worker.js'); scheduleNotification(); } catch (error) { console.error(error); } });
+})();
