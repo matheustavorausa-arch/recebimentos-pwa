@@ -1,0 +1,55 @@
+:root {
+  --ink:#f4f8f6;
+  --muted:#91a099;
+  --brand:#0c1511;
+  --brand-soft:#1b2b24;
+  --green:#19dc82;
+  --red:#ff5364;
+  --amber:#f3c85b;
+  --surface:#141d19;
+  --line:#2a3831;
+  --bg:#080d0b;
+  --shadow:0 14px 35px rgba(0,0,0,.28);
+}
+
+html,body { background:var(--bg); }
+body { color:var(--ink); background:radial-gradient(circle at 50% -120px,#183526 0,#0b120f 310px,#080d0b 620px); }
+.topbar { position:relative; overflow:hidden; color:#fff; background:linear-gradient(135deg,#101a16 0%,#08100d 65%,#13291f 100%); border-bottom:1px solid #284536; box-shadow:0 12px 34px rgba(0,0,0,.35); }
+.topbar::after { content:""; position:absolute; right:-50px; bottom:-105px; width:220px; height:220px; border:42px solid rgba(25,220,130,.08); border-radius:50%; }
+.topbar .eyebrow { color:var(--green); opacity:1; }.topbar h1 { text-transform:uppercase; letter-spacing:.01em; }.week-label { color:#a9bbb2; }
+.icon-button { position:relative; z-index:1; color:#07100c; border:0; background:var(--green); box-shadow:0 0 22px rgba(25,220,130,.3); font-weight:900; }
+main { max-width:820px; }
+.summary-card { color:var(--ink); border-color:#2b3933; background:linear-gradient(145deg,#18221e,#111815); box-shadow:var(--shadow); }
+.summary-card:hover { border-color:#426152; transform:translateY(-1px); }.summary-card span { color:#99a9a1; text-transform:uppercase; letter-spacing:.06em; font-weight:800; }.summary-card strong { font-variant-numeric:tabular-nums; }
+.summary-card.expected strong { color:var(--amber); }.summary-card.received strong { color:var(--green); }.summary-card.pending strong { color:var(--red); }.summary-card small { color:#9aa9a2; }
+.notification-card { border-color:#294a3a; color:var(--ink); background:linear-gradient(135deg,#13241c,#101813); box-shadow:0 8px 24px rgba(0,0,0,.2); }.notification-button { color:#07100c; background:var(--green); }
+.backup-card { border-color:#294a3a; color:var(--ink); background:linear-gradient(135deg,#13241c,#101813); box-shadow:0 8px 24px rgba(0,0,0,.2); }.backup-card .secondary-backup { color:var(--green); background:#182a21; box-shadow:inset 0 0 0 1px #2b5842; }
+.profile-edit-button { color:#07100c; background:var(--green); }
+.delay-label.grace { color:#ffc857; background:rgba(255,200,87,.12); }
+.tabs { border-color:#26352e; background:rgba(13,20,17,.94); box-shadow:0 10px 25px rgba(0,0,0,.3); }.tab { color:#87958e; text-transform:uppercase; letter-spacing:.035em; }.tab.active { color:#06100b; background:var(--green); box-shadow:0 0 18px rgba(25,220,130,.2); }
+.section-heading h2 { text-transform:uppercase; letter-spacing:.04em; }.count { color:#08120d; background:var(--green); }.count.danger { color:#fff; background:var(--red); }
+.payment-card,.payer-stats-card,.history-client-card { color:var(--ink); border-color:var(--line); background:linear-gradient(145deg,#17201c,#111815); box-shadow:0 8px 24px rgba(0,0,0,.18); }
+.payment-card.overdue { border-left-color:var(--red); box-shadow:inset 16px 0 30px -28px var(--red),0 8px 24px rgba(0,0,0,.18); }.payment-card.paid { opacity:.88; }
+.payer-link { color:var(--ink); text-decoration-color:#3f6854; }.payer-link:hover { color:var(--green); }
+.payment-meta,.payment-notes { color:var(--muted); }.schedule-label { color:#08120d; background:var(--amber); }.delay-label.current { color:var(--green); }
+.status-paid { color:#07150e; background:var(--green); }.status-partial { color:#181000; background:var(--amber); }.status-unpaid { color:#fff; background:#63313a; }
+.card-actions { border-top-color:var(--line); }.card-actions button,.detail-item button,.history-client-card > button { color:#07110c; background:var(--green); }.card-actions button.delete,.detail-item button.delete { color:#fff; background:#6d2d37; }
+.empty { color:var(--muted); border-color:#34453d; background:#101713; }
+.history-card { border-color:var(--line); background:var(--surface); }.history-items { background:var(--line); }.history-item { color:var(--ink); background:#121a16; }.history-totals { color:var(--muted); }.history-totals strong { color:var(--ink); }
+.stat,.profile-fact,.detail-item,.history-record { color:var(--ink); border-color:var(--line); background:#0f1713; }.stat span,.profile-fact span,.detail-item span,.detail-item small,.history-record span { color:var(--muted); }
+.late-count.zero { color:#07110c; background:var(--green); }.late-count { color:#fff; background:#6d2d37; }
+.dialog { color:var(--ink); background:#111915; border:1px solid #2b3933; }.dialog::backdrop { background:rgba(2,6,4,.78); }.dialog-body,.dialog form { background:#111915; }.dialog .eyebrow { color:var(--green); opacity:1; }.close-button { color:#c4d0ca; background:#25312b; }
+.dialog label,.dialog legend { color:#bec9c3; }.dialog input,.dialog select,.dialog textarea { color:var(--ink); border-color:#34443c; background:#0a100d; }.dialog input:focus,.dialog select:focus,.dialog textarea:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(25,220,130,.12); }.expected-line { color:#aab8b1; background:#0b120f; }
+.secondary { color:var(--ink); border-color:#35463e; background:#18211d; }.primary { color:#07110c; background:var(--green); }
+.score-card { box-shadow:0 10px 28px rgba(0,0,0,.25); }.reliability-badge { color:#07110c; background:var(--green); }
+.helper-text { color:var(--muted); }.toast { color:#06100b; background:var(--green); font-weight:800; }
+.payment-timer { color:#171000; background:var(--amber); }.payment-timer.overdue { color:#fff; background:var(--red); }
+::-webkit-scrollbar { width:8px; height:8px; } ::-webkit-scrollbar-thumb { background:#304239; border-radius:999px; } ::-webkit-scrollbar-track { background:#0b110e; }
+
+@media (max-width:680px) {
+  body { padding-bottom:calc(94px + env(safe-area-inset-bottom)); }
+  main { padding-bottom:30px; }
+  .tabs { position:fixed; top:auto; right:9px; bottom:calc(9px + env(safe-area-inset-bottom)); left:9px; z-index:15; margin:0; padding:5px; border-radius:17px; }
+  .tab { min-height:47px; padding:7px 3px; font-size:.65rem; }
+  .summary { gap:6px; }.summary-card { padding:12px 9px; }.summary-card span { min-height:26px; font-size:.61rem; }.summary-card strong { font-size:.86rem; }
+}
