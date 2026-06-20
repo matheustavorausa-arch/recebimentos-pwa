@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#173f35">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Recebimentos">
+  <meta name="description" content="Controle semanal de recebimentos, offline e no seu aparelho.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="data:image/png;base64,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">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="betting-theme.css">
+  <title>Recebimentos Semanais</title>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">CONTROLE SEMANAL</p>
+      <h1>Recebimentos</h1>
+      <p id="weekLabel" class="week-label"></p>
+    </div>
+    <button id="addPayerBtn" class="icon-button" type="button" aria-label="Adicionar pagador">+</button>
+  </header>
+
+  <main>
+    <section class="summary" aria-label="Resumo da semana">
+      <button id="waitingSummaryBtn" class="summary-card expected" type="button" aria-label="Ver pagamentos esperando nesta semana"><span>Esperando (semana)</span><strong id="totalExpected">R$ 0,00</strong><small>Toque para ver</small></button>
+      <button id="receivedSummaryBtn" class="summary-card received" type="button" aria-label="Ver pagamentos recebidos nesta semana"><span>Recebidos (semana)</span><strong id="totalReceived">R$ 0,00</strong><small>Toque para ver</small></button>
+      <button id="pendingSummaryBtn" class="summary-card pending" type="button" aria-label="Ver pagamentos pendentes"><span>Pendente</span><strong id="totalPending">R$ 0,00</strong><small>Toque para ver</small></button>
+    </section>
+
+    <section class="notification-card" aria-label="Lembrete diário">
+      <div>
+        <strong>Lembrete diário às 9h</strong>
+        <p id="notificationStatus">Receba um aviso com a quantidade de pagamentos pendentes.</p>
+      </div>
+      <button id="notificationBtn" class="notification-button" type="button">Ativar</button>
+    </section>
+
+    <section class="backup-card" aria-label="Backup dos dados">
+      <div>
+        <strong>Backup e transferência</strong>
+        <p>Leve todos os cadastros e pagamentos para outro aparelho. <span id="backupStatus">Nenhum backup registrado.</span></p>
+      </div>
+      <div class="backup-actions">
+        <button id="exportBackupBtn" class="notification-button" type="button">Exportar</button>
+        <button id="exportCsvBtn" class="notification-button secondary-backup" type="button">CSV</button>
+        <button id="importBackupBtn" class="notification-button secondary-backup" type="button">Importar</button>
+        <input id="backupFileInput" type="file" accept="application/json,.json" hidden>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="Navegação principal">
+      <button class="tab active" data-tab="dashboard" type="button">Semana</button>
+      <button class="tab" data-tab="payers" type="button">Pagadores</button>
+      <button class="tab" data-tab="history" type="button">Histórico</button>
+    </nav>
+
+    <section id="dashboardPanel" class="panel active">
+      <div class="section-heading"><h2>Hoje</h2><span id="todayCount" class="count"></span></div>
+      <div id="todayList" class="payment-list"></div>
+
+      <div class="section-heading"><h2>Atrasados</h2><span id="overdueCount" class="count danger"></span></div>
+      <div id="overdueList" class="payment-list"></div>
+
+      <div class="section-heading"><h2>Próximos pagamentos</h2><span id="upcomingCount" class="count"></span></div>
+      <div id="upcomingList" class="payment-list"></div>
+    </section>
+
+    <section id="payersPanel" class="panel">
+      <div class="list-tools"><label for="payerSearch">Buscar pessoa</label><input id="payerSearch" type="search" placeholder="Digite o nome..." autocomplete="off"></div>
+      <div class="section-heading"><h2>Pagadores ativos</h2><span id="payerCount" class="count"></span></div>
+      <div id="payersList" class="payment-list"></div>
+      <div class="section-heading inactive-heading"><h2>Inativos — somente histórico</h2><span id="inactivePayerCount" class="count"></span></div>
+      <div id="inactivePayersList" class="payment-list"></div>
+    </section>
+
+    <section id="historyPanel" class="panel">
+      <div class="section-heading"><h2>Resumo por pagador</h2></div>
+      <div id="payerHistoryStats" class="payer-stats-list"></div>
+      <div class="section-heading"><h2>Últimas semanas</h2></div>
+      <div id="historyList" class="history-list"></div>
+    </section>
+
+  </main>
+
+  <dialog id="payerDialog" class="dialog">
+    <form id="payerForm" method="dialog">
+      <div class="dialog-header"><h2 id="payerDialogTitle">Novo pagador</h2><button class="close-button" value="cancel" aria-label="Fechar">×</button></div>
+      <input id="payerId" type="hidden">
+      <label>Nome<input id="payerName" required maxlength="60" autocomplete="name" placeholder="Ex.: João Silva"></label>
+      <label>Valor semanal<input id="payerAmount" required inputmode="decimal" placeholder="0,00"></label>
+      <label>Dia do vencimento<select id="payerDay" required></select></label>
+      <label>Alteração válida a partir da semana de<input id="payerTermsEffective" type="date"><small>Nome e observações mudam imediatamente. Valor e vencimento respeitam esta semana.</small></label>
+      <label>Último pagamento recebido<input id="payerLastPayment" type="date"></label>
+      <label>Observações<textarea id="payerNotes" maxlength="180" rows="3" placeholder="Opcional"></textarea></label>
+      <div class="dialog-actions"><button class="secondary" value="cancel" type="button" data-close="payerDialog">Cancelar</button><button class="primary" type="submit">Salvar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="paymentDialog" class="dialog">
+    <form id="paymentForm" method="dialog">
+      <div class="dialog-header"><div><p class="eyebrow">ATUALIZAR PAGAMENTO</p><h2 id="paymentPayerName"></h2></div><button class="close-button" value="cancel" aria-label="Fechar">×</button></div>
+      <input id="paymentPayerId" type="hidden">
+      <p id="paymentExpected" class="expected-line"></p>
+      <label>Vencimento que está sendo pago<select id="paymentDueWeek" required></select></label>
+      <label id="paymentDateLabel">Data do recebimento<input id="paymentDate" type="date"></label>
+      <label id="paymentTimeLabel">Horário do recebimento<input id="paymentTime" type="time"></label>
+      <fieldset><legend>Status</legend><div class="status-options">
+        <label><input type="radio" name="status" value="paid"><span>Pago</span></label>
+        <label><input type="radio" name="status" value="partial"><span>Pago Parcial</span></label>
+        <label><input type="radio" name="status" value="unpaid"><span>Não Pago</span></label>
+      </div></fieldset>
+      <label id="receivedAmountLabel">Valor recebido<input id="receivedAmount" inputmode="decimal" placeholder="0,00"></label>
+      <label>Observação desta semana<textarea id="paymentNotes" maxlength="180" rows="3" placeholder="Opcional"></textarea></label>
+      <div class="dialog-actions"><button class="secondary" value="cancel" type="button" data-close="paymentDialog">Cancelar</button><button class="primary" type="submit">Atualizar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="pendingDialog" class="dialog">
+    <div class="dialog-body">
+      <div class="dialog-header"><div><p class="eyebrow">COBRANÇAS VENCIDAS</p><h2>Quem está devendo</h2></div><button class="close-button" type="button" data-close="pendingDialog" aria-label="Fechar">×</button></div>
+      <p class="helper-text">Aparecem aqui somente pagamentos vencidos ou que vencem hoje.</p>
+      <div id="pendingDetailList" class="detail-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="waitingDialog" class="dialog">
+    <div class="dialog-body">
+      <div class="dialog-header"><div><p class="eyebrow">REFERENTE À SEMANA</p><h2>Esperando pagamento</h2></div><button class="close-button" type="button" data-close="waitingDialog" aria-label="Fechar">×</button></div>
+      <p class="helper-text">Pagamentos que ainda vão vencer até o fim desta semana.</p>
+      <div id="waitingDetailList" class="detail-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="receivedDialog" class="dialog">
+    <div class="dialog-body">
+      <div class="dialog-header"><div><p class="eyebrow">REFERENTE À SEMANA</p><h2>Pagamentos recebidos</h2></div><button class="close-button" type="button" data-close="receivedDialog" aria-label="Fechar">×</button></div>
+      <p class="helper-text">Valores recebidos durante a semana atual.</p>
+      <div id="receivedDetailList" class="detail-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="profileDialog" class="dialog profile-dialog">
+    <div class="dialog-body">
+      <div class="dialog-header"><div><p class="eyebrow">PERFIL DO PAGADOR</p><h2 id="profileName"></h2></div><button class="close-button" type="button" data-close="profileDialog" aria-label="Fechar">×</button></div>
+      <input id="profilePayerId" type="hidden">
+      <section id="profileScoreCard" class="score-card"><div><span>Score</span><strong id="profileScore">100</strong></div><div><strong id="profileScoreLabel">Excelente</strong><small>100 pontos iniciais · atrasos e punições reduzem a nota</small></div></section>
+      <div id="profileOverview" class="profile-overview"></div>
+      <div class="profile-actions">
+        <button id="editProfilePayerBtn" class="profile-edit-button" type="button">Editar cadastro</button>
+        <button id="togglePayerStatusBtn" class="status-toggle" type="button">Tornar inativo</button>
+      </div>
+      <div class="detail-heading"><h3>Pagamentos</h3></div>
+      <div id="profilePayments" class="detail-list"></div>
+      <div class="detail-heading"><h3>Punições</h3></div>
+      <div id="profilePenalties" class="detail-list"></div>
+      <form id="penaltyForm" class="penalty-form">
+        <label>Motivo<input id="penaltyReason" required maxlength="100" placeholder="Ex.: descumpriu um acordo"></label>
+        <label>Pontos retirados<input id="penaltyPoints" required type="number" inputmode="numeric" min="1" max="50" value="10"></label>
+        <button class="danger-button" type="submit">Adicionar punição</button>
+      </form>
+    </div>
+  </dialog>
+
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="payment-history-data.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
