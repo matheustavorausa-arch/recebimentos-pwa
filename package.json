@@ -1,0 +1,14 @@
+{
+  "name": "recebimentos-pwa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PWA de controle de recebimentos semanais com notificações Web Push via Vercel.",
+  "scripts": {
+    "generate:vapid": "web-push generate-vapid-keys",
+    "check": "node --check js/app.js && node --check service-worker.js && node --check api/push/config.js && node --check api/push/subscribe.js && node --check api/push/unsubscribe.js && node --check api/cron/daily.js"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {}
+}
