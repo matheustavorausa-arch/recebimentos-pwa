@@ -41,7 +41,7 @@ module.exports = async function handler(request, response) {
     console.error(error);
     return response.status(error.code === 'KV_NOT_CONFIGURED' ? 503 : 500).json({
       error: error.code === 'KV_NOT_CONFIGURED'
-        ? 'Armazenamento do Vercel não configurado.'
+        ? 'Armazenamento Redis/KV do Vercel não configurado.'
         : 'Não foi possível executar o cron.'
     });
   }

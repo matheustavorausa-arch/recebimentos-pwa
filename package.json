@@ -8,6 +8,7 @@
     "check": "node --check js/app.js && node --check service-worker.js && node --check api/push/config.js && node --check api/push/subscribe.js && node --check api/push/unsubscribe.js && node --check api/cron/daily.js"
   },
   "dependencies": {
+    "redis": "^4.7.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {}

@@ -1,18 +1,49 @@
 const DEVICE_SET_KEY = 'recebimentos:push:devices';
 const DEVICE_KEY_PREFIX = 'recebimentos:push:device:';
+let redisClientPromise;
 
 function redisConfig() {
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  return { url, token, ready: Boolean(url && token) };
+  const connectionUrl = process.env.REDIS_URL;
+  return { url, token, connectionUrl, ready: Boolean((url && token) || connectionUrl) };
+}
+
+async function redisClient() {
+  if (!process.env.REDIS_URL) return null;
+  if (!redisClientPromise) {
+    redisClientPromise = import('redis').then(async ({ createClient }) => {
+      const client = createClient({ url: process.env.REDIS_URL });
+      client.on('error', error => console.error('Redis client error', error));
+      await client.connect();
+      return client;
+    });
+  }
+  return redisClientPromise;
 }
 
 async function redisPipeline(commands) {
-  const { url, token, ready } = redisConfig();
+  const { url, token, connectionUrl, ready } = redisConfig();
   if (!ready) {
-    const error = new Error('KV_REST_API_URL/KV_REST_API_TOKEN não configurados.');
+    const error = new Error('REDIS_URL ou KV_REST_API_URL/KV_REST_API_TOKEN não configurados.');
     error.code = 'KV_NOT_CONFIGURED';
     throw error;
+  }
+
+  if (connectionUrl) {
+    const client = await redisClient();
+    return Promise.all(commands.map(command => {
+      const [operation, ...args] = command;
+      switch (String(operation).toUpperCase()) {
+        case 'SET': return client.set(args[0], args[1]);
+        case 'DEL': return client.del(args[0]);
+        case 'SADD': return client.sAdd(args[0], args[1]);
+        case 'SREM': return client.sRem(args[0], args[1]);
+        case 'SMEMBERS': return client.sMembers(args[0]);
+        case 'MGET': return client.mGet(args);
+        default: throw new Error(`Comando Redis não suportado: ${operation}`);
+      }
+    }));
   }
 
   const response = await fetch(`${url.replace(/\/$/, '')}/pipeline`, {
