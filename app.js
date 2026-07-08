@@ -156,6 +156,12 @@
     bind('#openEarningsBtn', () => openModule('earnings'));
     bind('[data-module-home]', openHome);
   }
+  window.appNavigate = destination => {
+    if (destination === 'logout') return logout();
+    if (destination === 'home') return openHome();
+    if (destination === 'earnings') return openModule('earnings');
+    return openModule('rentals');
+  };
   function pushDeviceId() { state.settings ||= {}; if (!state.settings.pushDeviceId) { state.settings.pushDeviceId = `device-${uid()}`; saveState(); } return state.settings.pushDeviceId; }
   function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);

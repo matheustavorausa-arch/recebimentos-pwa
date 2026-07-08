@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#173f35">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -33,11 +33,11 @@
         <h1>Tela principal</h1>
         <p class="week-label">Escolha uma área para continuar.</p>
       </div>
-      <button id="logoutBtn" class="notification-button secondary-backup" type="button">Sair</button>
+      <button id="logoutBtn" class="notification-button secondary-backup" type="button" onclick="window.appNavigate && window.appNavigate('logout'); return false;">Sair</button>
     </header>
     <main class="home-main">
-      <button id="openRentalsBtn" class="module-card" type="button"><span>🏠</span><strong>Aluguéis</strong><small>Sistema atual de recebimentos</small></button>
-      <button id="openEarningsBtn" class="module-card earnings" type="button"><span>💰</span><strong>Ganhos</strong><small>Lançamentos, metas e relatórios</small></button>
+      <button id="openRentalsBtn" class="module-card" type="button" onclick="window.appNavigate && window.appNavigate('rentals'); return false;"><span>🏠</span><strong>Aluguéis</strong><small>Sistema atual de recebimentos</small></button>
+      <button id="openEarningsBtn" class="module-card earnings" type="button" onclick="window.appNavigate && window.appNavigate('earnings'); return false;"><span>💰</span><strong>Ganhos</strong><small>Lançamentos, metas e relatórios</small></button>
     </main>
   </section>
 
@@ -49,7 +49,7 @@
       <p id="weekLabel" class="week-label"></p>
     </div>
     <div class="topbar-actions">
-      <button class="notification-button secondary-backup" type="button" data-module-home>Início</button>
+      <button class="notification-button secondary-backup" type="button" data-module-home onclick="window.appNavigate && window.appNavigate('home'); return false;">Início</button>
       <button id="addPayerBtn" class="icon-button" type="button" aria-label="Adicionar pagador">+</button>
     </div>
   </header>
@@ -124,7 +124,7 @@
         <h1>Ganhos</h1>
         <p id="earningsWeekLabel" class="week-label"></p>
       </div>
-      <button class="notification-button secondary-backup" type="button" data-module-home>Início</button>
+      <button class="notification-button secondary-backup" type="button" data-module-home onclick="window.appNavigate && window.appNavigate('home'); return false;">Início</button>
     </header>
 
     <main>
