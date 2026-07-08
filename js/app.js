@@ -477,17 +477,24 @@
   function daysWithEarnings(records) { return new Set(records.map(item => item.date)).size; }
   function yesterdayHasEarnings(now = new Date()) { const date = new Date(now); date.setDate(date.getDate() - 1); return (state.earnings || []).some(item => item.date === localDate(date)); }
   function todayHasEarnings(now = new Date()) { return (state.earnings || []).some(item => item.date === localDate(now)); }
+  function earningsStats() {
+    const records = earningsThisWeek();
+    const total = records.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const goal = Number(state.earningsSettings?.weeklyGoal || 0);
+    const dayCount = daysWithEarnings(records);
+    const average = dayCount ? total / dayCount : 0;
+    const diff = total - goal;
+    return { records, total, goal, dayCount, average, diff, appTotals: groupedTotal(records,'app'), personTotals: groupedTotal(records,'person') };
+  }
   function renderEarnings() {
     state.earnings ||= []; state.earningsSettings ||= { weeklyGoal: 0 };
     const start = startOfWeek(); const end = new Date(start); end.setDate(end.getDate() + 6);
     $('earningsWeekLabel').textContent = `${formatShort(start)} a ${formatShort(end)}`;
     $('earningDate').value ||= localDate();
     $('earningsGoalInput').value = state.earningsSettings.weeklyGoal ? Number(state.earningsSettings.weeklyGoal).toFixed(2).replace('.', ',') : '';
-    const records = earningsThisWeek(); const total = records.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const goal = Number(state.earningsSettings.weeklyGoal || 0); const dayCount = daysWithEarnings(records); const average = dayCount ? total / dayCount : 0; const diff = total - goal;
+    const { records, total, goal, dayCount, average, diff, appTotals, personTotals } = earningsStats();
     $('earningsWeekTotal').textContent = money(total); $('earningsGoalValue').textContent = money(goal); $('earningsDailyAverage').textContent = money(average);
     $('earningsGoalDiff').textContent = goal ? (diff >= 0 ? `${money(diff)} acima da meta` : `${money(Math.abs(diff))} para bater a meta`) : 'Defina uma meta';
-    const appTotals = groupedTotal(records,'app'); const personTotals = groupedTotal(records,'person');
     const reportRows = [
       ['Total por aplicativo', Object.entries(appTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'],
       ['Total por pessoa', Object.entries(personTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'],
@@ -498,6 +505,39 @@
     $('earningsCount').textContent = String((state.earnings || []).length);
     const history = (state.earnings || []).slice().sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0,80);
     $('earningsHistory').innerHTML = history.length ? history.map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${money(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div><button class="delete" data-delete-earning="${item.id}">Excluir</button></article>`).join('') : empty('Nenhum ganho registrado ainda.');
+  }
+  function detailRow(label,value) { return `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div></article>`; }
+  function earningsRecordRow(item) { return `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${money(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div></article>`; }
+  function openEarningsGoal() {
+    const { total, goal, average, dayCount, diff } = earningsStats();
+    $('earningsGoalInput').value = goal ? goal.toFixed(2).replace('.', ',') : '';
+    $('earningsGoalDetails').innerHTML = [
+      ['Total da semana', money(total)],
+      ['Meta atual', goal ? money(goal) : 'Não definida'],
+      ['Diferença', goal ? (diff >= 0 ? `${money(diff)} acima da meta` : `${money(Math.abs(diff))} faltando`) : 'Defina uma meta'],
+      ['Média diária', `${money(average)} em ${dayCount} dia(s)`]
+    ].map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+    $('earningsGoalDialog').showModal();
+  }
+  function openEarningsDetail(type) {
+    const { records, total, goal, average, dayCount, diff, appTotals, personTotals } = earningsStats();
+    if (type === 'goal') { openEarningsGoal(); return; }
+    $('earningsDetailTitle').textContent = type === 'average' ? 'Média diária' : 'Total da semana';
+    const rows = type === 'average'
+      ? [
+          detailRow('Média diária', `${money(average)} em ${dayCount} dia(s) com ganhos`),
+          detailRow('Total da semana', money(total)),
+          detailRow('Meta semanal', goal ? money(goal) : 'Não definida'),
+          detailRow('Diferença para meta', goal ? (diff >= 0 ? `${money(diff)} acima` : `${money(Math.abs(diff))} faltando`) : 'Não definida')
+        ]
+      : [
+          detailRow('Total da semana', money(total)),
+          detailRow('Por aplicativo', Object.entries(appTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'),
+          detailRow('Por pessoa', Object.entries(personTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'),
+          ...(records.length ? records.map(earningsRecordRow) : [empty('Nenhum ganho registrado nesta semana.')])
+        ];
+    $('earningsDetailBody').innerHTML = rows.join('');
+    $('earningsDetailDialog').showModal();
   }
   function addEarning(event) {
     event.preventDefault();
@@ -512,7 +552,7 @@
     event.preventDefault();
     const goal = parseMoney($('earningsGoalInput').value || '0');
     state.earningsSettings ||= {}; state.earningsSettings.weeklyGoal = Number.isFinite(goal) && goal > 0 ? goal : 0;
-    saveState(); renderEarnings(); showToast('Meta semanal salva.');
+    saveState(); renderEarnings(); if ($('earningsGoalDialog').open) $('earningsGoalDialog').close(); showToast('Meta semanal salva.');
   }
 
   function scoreFor(payer) {
@@ -861,6 +901,7 @@
     if (button.id === 'pendingSummaryBtn') openPendingDetails();
     if (button.id === 'waitingSummaryBtn') openWaitingDetails();
     if (button.id === 'receivedSummaryBtn') openReceivedDetails();
+    if (button.dataset.earningsDetail) openEarningsDetail(button.dataset.earningsDetail);
     if (button.dataset.profile) openProfile(button.dataset.profile);
     if (button.dataset.edit) openPayer(button.dataset.edit);
     if (button.dataset.payment) { if ($('pendingDialog').open) $('pendingDialog').close(); if ($('waitingDialog').open) $('waitingDialog').close(); if ($('receivedDialog').open) $('receivedDialog').close(); if ($('profileDialog').open) $('profileDialog').close(); openPayment(button.dataset.payment, button.dataset.week); }

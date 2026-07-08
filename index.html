@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=37">
-  <link rel="stylesheet" href="css/betting-theme.css?v=37">
+  <link rel="stylesheet" href="css/styles.css?v=38">
+  <link rel="stylesheet" href="css/betting-theme.css?v=38">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -148,9 +148,9 @@
 
     <main>
       <section class="summary earnings-summary" aria-label="Resumo dos ganhos">
-        <div class="summary-card received"><span>Total da semana</span><strong id="earningsWeekTotal">R$ 0,00</strong><small>Ganhos registrados</small></div>
-        <div class="summary-card expected"><span>Meta semanal</span><strong id="earningsGoalValue">R$ 0,00</strong><small id="earningsGoalDiff">Defina uma meta</small></div>
-        <div class="summary-card pending"><span>Média diária</span><strong id="earningsDailyAverage">R$ 0,00</strong><small>Dias preenchidos</small></div>
+        <button class="summary-card received" type="button" data-earnings-detail="week"><span>Total da semana</span><strong id="earningsWeekTotal">R$ 0,00</strong><small>Toque para detalhar</small></button>
+        <button class="summary-card expected" type="button" data-earnings-detail="goal"><span>Meta semanal</span><strong id="earningsGoalValue">R$ 0,00</strong><small id="earningsGoalDiff">Defina uma meta</small></button>
+        <button class="summary-card pending" type="button" data-earnings-detail="average"><span>Média diária</span><strong id="earningsDailyAverage">R$ 0,00</strong><small>Toque para detalhar</small></button>
       </section>
 
       <section class="earnings-card">
@@ -166,14 +166,6 @@
       </section>
 
       <section class="earnings-card">
-        <div class="section-heading"><h2>Meta semanal</h2></div>
-        <form id="earningsGoalForm" class="goal-form">
-          <label>Valor da meta<input id="earningsGoalInput" inputmode="decimal" placeholder="0,00"></label>
-          <button class="notification-button" type="submit">Salvar meta</button>
-        </form>
-      </section>
-
-      <section class="earnings-card">
         <div class="section-heading"><h2>Relatórios</h2></div>
         <div id="earningsReports" class="report-grid"></div>
       </section>
@@ -184,6 +176,22 @@
       </section>
     </main>
   </section>
+
+  <dialog id="earningsDetailDialog" class="dialog">
+    <div class="dialog-body">
+      <div class="dialog-header"><div><p class="eyebrow">GANHOS</p><h2 id="earningsDetailTitle">Detalhes</h2></div><button class="close-button" type="button" data-close="earningsDetailDialog" aria-label="Fechar">×</button></div>
+      <div id="earningsDetailBody" class="detail-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="earningsGoalDialog" class="dialog">
+    <form id="earningsGoalForm" method="dialog">
+      <div class="dialog-header"><div><p class="eyebrow">META SEMANAL</p><h2>Meta dos ganhos</h2></div><button class="close-button" value="cancel" aria-label="Fechar">×</button></div>
+      <div id="earningsGoalDetails" class="report-grid"></div>
+      <label>Editar meta semanal<input id="earningsGoalInput" inputmode="decimal" placeholder="0,00"></label>
+      <div class="dialog-actions"><button class="secondary" value="cancel" type="button" data-close="earningsGoalDialog">Cancelar</button><button class="primary" type="submit">Salvar meta</button></div>
+    </form>
+  </dialog>
 
   <dialog id="payerDialog" class="dialog">
     <form id="payerForm" method="dialog">
@@ -266,7 +274,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=37" defer></script>
-  <script src="js/app.js?v=37" defer></script>
+  <script src="js/payment-history-data.js?v=38" defer></script>
+  <script src="js/app.js?v=38" defer></script>
 </body>
 </html>
