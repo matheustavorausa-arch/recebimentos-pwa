@@ -515,6 +515,8 @@
   function todayHasEarnings(now = new Date()) { return (state.earnings || []).some(item => item.date === localDate(now)); }
   function earningsStats() {
     const records = earningsThisWeek();
+    const rentalRecords = receivedItemsThisWeek();
+    const rentalTotal = rentalRecords.reduce((sum, item) => sum + Number(item.received || 0), 0);
     const total = records.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const workRecords = records.filter(isWorkEarning);
     const excludedRecords = records.filter(item => !isWorkEarning(item));
@@ -525,7 +527,7 @@
     const dayCount = daysWithEarnings(workRecords);
     const average = dayCount ? workTotal / dayCount : 0;
     const diff = workTotal - goal;
-    return { records, total, workRecords, excludedRecords, workTotal, excludedTotal, workScore, goal, dayCount, average, diff, appTotals: groupedTotal(workRecords,'app'), personTotals: groupedTotal(workRecords,'person') };
+    return { records, total, workRecords, excludedRecords, workTotal, excludedTotal, workScore, rentalRecords, rentalTotal, goal, dayCount, average, diff, appTotals: groupedTotal(workRecords,'app'), personTotals: groupedTotal(workRecords,'person') };
   }
   function renderEarnings() {
     state.earnings ||= []; state.earningsSettings ||= { weeklyGoal: 0 };
@@ -533,8 +535,8 @@
     $('earningsWeekLabel').textContent = `${formatShort(start)} a ${formatShort(end)}`;
     $('earningDate').value ||= localDate();
     $('earningsGoalInput').value = state.earningsSettings.weeklyGoal ? Number(state.earningsSettings.weeklyGoal).toFixed(2).replace('.', ',') : '';
-    const { records, total, workTotal, excludedTotal, workScore, excludedRecords, goal, dayCount, average, diff, appTotals, personTotals } = earningsStats();
-    $('earningsWeekTotal').textContent = money(workTotal); $('earningsGoalValue').textContent = money(goal); $('earningsDailyAverage').textContent = money(average); $('earningsOtherTotal').textContent = money(excludedTotal);
+    const { records, total, workTotal, excludedTotal, workScore, excludedRecords, rentalTotal, goal, dayCount, average, diff, appTotals, personTotals } = earningsStats();
+    $('earningsWeekTotal').textContent = money(workTotal); $('earningsGoalValue').textContent = money(goal); $('earningsDailyAverage').textContent = money(average); $('earningsOtherTotal').textContent = money(excludedTotal); $('earningsRentalTotal').textContent = money(rentalTotal);
     $('earningsWorkScore').textContent = `${workScore.value}/100`;
     $('earningsWorkScoreLabel').textContent = `${workScore.label} - ${money(workTotal)} em trabalho`;
     const scoreCard = document.querySelector('.score-summary');
@@ -569,11 +571,12 @@
     $('earningsGoalDialog').showModal();
   }
   function openEarningsDetail(type) {
-    const { records, total, workRecords, excludedRecords, workTotal, excludedTotal, workScore, goal, average, dayCount, diff, appTotals, personTotals } = earningsStats();
+    const { records, total, workRecords, excludedRecords, workTotal, excludedTotal, workScore, rentalRecords, rentalTotal, goal, average, dayCount, diff, appTotals, personTotals } = earningsStats();
     if (type === 'goal') { openEarningsGoal(); return; }
     $('earningsDetailTitle').textContent = type === 'average' ? 'Média diária' : 'Total da semana';
     if (type === 'score') $('earningsDetailTitle').textContent = 'Score semanal';
     if (type === 'other') $('earningsDetailTitle').textContent = 'Outros / auxilios';
+    if (type === 'rentals') $('earningsDetailTitle').textContent = 'Alugueis da semana';
     if (type === 'average') {
       $('earningsDetailTitle').textContent = 'Media diaria';
       $('earningsDetailBody').innerHTML = [
@@ -600,6 +603,12 @@
           detailRow('Total separado', money(excludedTotal)),
           detailRow('Regra', 'Auxilios, eventos e subsidios nao entram no total semanal de trabalho, media diaria, meta ou score.'),
           ...(excludedRecords.length ? excludedRecords.map(earningsRecordRow) : [empty('Nenhum auxilio/evento nesta semana.')])
+        ]
+      : type === 'rentals'
+      ? [
+          detailRow('Total recebido em alugueis', money(rentalTotal)),
+          detailRow('Regra', 'Valor apenas visual. Nao entra no total semanal de ganhos, media, meta ou score.'),
+          ...(rentalRecords.length ? rentalRecords.map(item => detailRow(item.payer.name, `${money(item.received)} recebido em ${formatDate(item.payment.receivedDate)}`)) : [empty('Nenhum aluguel recebido nesta semana.')])
         ]
       : type === 'average'
       ? [
