@@ -15,10 +15,19 @@ h2 { margin-bottom:0; font-size:1.02rem; }
 .icon-button { width:44px; height:44px; border:1px solid rgba(255,255,255,.25); border-radius:14px; color:#fff; background:rgba(255,255,255,.12); font-size:1.8rem; line-height:1; }
 main { width:min(760px,100%); margin:auto; padding:18px 14px; }
 .summary { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-.summary-card { min-width:0; padding:14px 11px; border:1px solid var(--line); border-radius:16px; background:var(--surface); box-shadow:var(--shadow); text-align:left; }
+.summary-card { position:relative; min-width:0; overflow:hidden; padding:14px 11px; border:1px solid var(--line); border-radius:16px; background:var(--surface); box-shadow:var(--shadow); text-align:left; }
+.summary-card span,.summary-card strong,.summary-card small { position:relative; z-index:1; }
 .summary-card span { display:block; margin-bottom:7px; color:var(--muted); font-size:.72rem; }
 .summary-card strong { display:block; overflow:hidden; font-size:.98rem; text-overflow:ellipsis; }
 .summary-card small { display:block; margin-top:5px; color:var(--red); font-size:.58rem; font-weight:800; }
+.mini-trend { position:absolute; inset:28px 4px 2px; z-index:0; pointer-events:none; opacity:.48; }
+.mini-trend svg { width:100%; height:100%; overflow:visible; }
+.trend-previous,.trend-current { fill:none; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+.trend-previous { stroke:rgba(130,148,139,.42); stroke-width:1.1; stroke-dasharray:3 4; }
+.trend-current { stroke:var(--amber); stroke-width:2; filter:drop-shadow(0 2px 4px rgba(0,0,0,.18)); }
+.trend-up .trend-current { stroke:var(--green); }.trend-down .trend-current { stroke:var(--red); }.trend-same .trend-current { stroke:var(--amber); }
+.trend-dot { vector-effect:non-scaling-stroke; stroke:rgba(255,255,255,.65); stroke-width:.7; }
+.trend-dot.up { fill:var(--green); }.trend-dot.down { fill:var(--red); }.trend-dot.same { fill:var(--amber); }
 .summary-card.received strong { color:var(--green); }.summary-card.pending strong { color:var(--red); }
 .summary-card.score-summary strong { color:var(--amber); }
 .summary-card.other-summary strong { color:var(--amber); }

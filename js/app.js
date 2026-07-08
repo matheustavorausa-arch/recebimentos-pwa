@@ -521,6 +521,66 @@
     }
     return Math.max(1, Math.min(6, count));
   }
+  function trendClass(current, previous) {
+    if (Math.abs(current - previous) < 0.01) return 'same';
+    return current > previous ? 'up' : 'down';
+  }
+  function earningsDailyTotals(start, filter) {
+    const end = new Date(start); end.setDate(start.getDate() + 6);
+    const startKey = localDate(start); const endKey = localDate(end);
+    const totals = [0,0,0,0,0,0];
+    (state.earnings || []).filter(item => item.date >= startKey && item.date < endKey && filter(item)).forEach(item => {
+      const date = parseLocalDate(item.date); const index = date ? date.getDay() - 1 : -1;
+      if (index >= 0 && index < 6) totals[index] += Number(item.amount || 0);
+    });
+    return totals;
+  }
+  function rentalDailyTotals(start) {
+    const end = new Date(start); end.setDate(start.getDate() + 6);
+    const startKey = localDate(start); const endKey = localDate(end);
+    const totals = [0,0,0,0,0,0];
+    visiblePayers().flatMap(payer => recordsFor(payer).map(({ payment }) => ({ payment, received: Number(payment.received) || 0 }))).filter(item => item.received > 0 && item.payment.receivedDate >= startKey && item.payment.receivedDate < endKey).forEach(item => {
+      const date = parseLocalDate(item.payment.receivedDate); const index = date ? date.getDay() - 1 : -1;
+      if (index >= 0 && index < 6) totals[index] += item.received;
+    });
+    return totals;
+  }
+  function miniTrendHtml(current, previous) {
+    const max = Math.max(1, ...current, ...previous);
+    const point = (value, index) => `${6 + (index * 17.6)},${42 - ((value / max) * 30)}`;
+    const currentPoints = current.map(point).join(' ');
+    const previousPoints = previous.map(point).join(' ');
+    const totalCurrent = current.reduce((sum, value) => sum + value, 0);
+    const totalPrevious = previous.reduce((sum, value) => sum + value, 0);
+    const status = trendClass(totalCurrent, totalPrevious);
+    const dots = current.map((value, index) => {
+      const [cx, cy] = point(value, index).split(',');
+      return `<circle class="trend-dot ${trendClass(value, previous[index] || 0)}" cx="${cx}" cy="${cy}" r="2.4"></circle>`;
+    }).join('');
+    return `<div class="mini-trend trend-${status}" aria-hidden="true"><svg viewBox="0 0 100 46" preserveAspectRatio="none"><polyline class="trend-previous" points="${previousPoints}"></polyline><polyline class="trend-current" points="${currentPoints}"></polyline>${dots}</svg></div>`;
+  }
+  function setCardTrend(selector, current, previous) {
+    const card = document.querySelector(selector);
+    if (!card) return;
+    card.querySelector('.mini-trend')?.remove();
+    card.insertAdjacentHTML('afterbegin', miniTrendHtml(current, previous));
+  }
+  function renderEarningsTrends() {
+    const currentStart = startOfWeek();
+    const previousStart = new Date(currentStart); previousStart.setDate(currentStart.getDate() - 7);
+    const currentWork = earningsDailyTotals(currentStart, isWorkEarning);
+    const previousWork = earningsDailyTotals(previousStart, isWorkEarning);
+    const currentOther = earningsDailyTotals(currentStart, item => !isWorkEarning(item));
+    const previousOther = earningsDailyTotals(previousStart, item => !isWorkEarning(item));
+    const currentRentals = rentalDailyTotals(currentStart);
+    const previousRentals = rentalDailyTotals(previousStart);
+    setCardTrend('[data-earnings-detail="week"]', currentWork, previousWork);
+    setCardTrend('[data-earnings-detail="average"]', currentWork, previousWork);
+    setCardTrend('[data-earnings-detail="score"]', currentWork, previousWork);
+    setCardTrend('[data-earnings-detail="goal"]', currentWork, previousWork);
+    setCardTrend('[data-earnings-detail="other"]', currentOther, previousOther);
+    setCardTrend('[data-earnings-detail="rentals"]', currentRentals, previousRentals);
+  }
   function yesterdayHasEarnings(now = new Date()) { const date = new Date(now); date.setDate(date.getDate() - 1); return (state.earnings || []).some(item => item.date === localDate(date)); }
   function todayHasEarnings(now = new Date()) { return (state.earnings || []).some(item => item.date === localDate(now)); }
   function earningsStats() {
@@ -563,6 +623,7 @@
     ];
     $('earningsReports').innerHTML = reportRows.map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
     $('earningsCount').textContent = String((state.earnings || []).length);
+    setTimeout(renderEarningsTrends, 0);
     const history = (state.earnings || []).slice().sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0,80);
     $('earningsHistory').innerHTML = history.length ? history.map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${money(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div><button class="delete" data-delete-earning="${item.id}">Excluir</button></article>`).join('') : empty('Nenhum ganho registrado ainda.');
   }
