@@ -174,7 +174,12 @@
     bind('#openEarningsBtn', () => openModule('earnings'));
     bind('[data-module-home]', openHome);
   }
-  window.appThemeToggle = toggleTheme;
+  window.appThemeToggle = event => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    toggleTheme();
+    return false;
+  };
   window.appNavigate = destination => {
     if (destination === 'logout') return logout();
     if (destination === 'home') return openHome();
@@ -841,11 +846,6 @@
     payer.penalties ||= []; payer.penalties.push({ id: uid(), reason, points, createdAt: new Date().toISOString() });
     saveState(); renderAll(); renderProfile(payer); $('penaltyReason').value = ''; $('penaltyPoints').value = '10'; showToast('Punição adicionada ao score.');
   });
-
-  document.addEventListener('click', event => {
-    const themeButton = event.target.closest('[data-theme-toggle]');
-    if (themeButton) { event.preventDefault(); event.stopPropagation(); toggleTheme(); return; }
-  }, true);
 
   document.addEventListener('click', event => {
     const button = event.target.closest('button'); if (!button) return;
