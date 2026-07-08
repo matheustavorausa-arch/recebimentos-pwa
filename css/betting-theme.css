@@ -168,6 +168,11 @@ body.theme-light .stat strong,
 body.theme-light .history-record strong {
   color:#17211e;
 }
+body.theme-light .summary-card.score-lazy strong { color:#b3261e; }
+body.theme-light .summary-card.score-warming strong { color:#9a6400; }
+body.theme-light .summary-card.score-good strong,
+body.theme-light .summary-card.score-great strong,
+body.theme-light .summary-card.score-hard strong { color:#087443; }
 body.theme-light .notification-button,
 body.theme-light .primary,
 body.theme-light .tab.active,
