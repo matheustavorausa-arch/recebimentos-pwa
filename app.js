@@ -173,7 +173,6 @@
     bind('#openRentalsBtn', () => openModule('rentals'));
     bind('#openEarningsBtn', () => openModule('earnings'));
     bind('[data-module-home]', openHome);
-    bind('[data-theme-toggle]', toggleTheme);
   }
   window.appThemeToggle = toggleTheme;
   window.appNavigate = destination => {
@@ -844,9 +843,13 @@
   });
 
   document.addEventListener('click', event => {
+    const themeButton = event.target.closest('[data-theme-toggle]');
+    if (themeButton) { event.preventDefault(); event.stopPropagation(); toggleTheme(); return; }
+  }, true);
+
+  document.addEventListener('click', event => {
     const button = event.target.closest('button'); if (!button) return;
     if (handlePrimaryNavigation(button)) return;
-    if (button.dataset.themeToggle !== undefined) toggleTheme();
     if (button.id === 'addPayerBtn') openPayer();
     if (button.id === 'notificationBtn') toggleNotifications();
     if (button.id === 'editProfilePayerBtn') editProfilePayer();
