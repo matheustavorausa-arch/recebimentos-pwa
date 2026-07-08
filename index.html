@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=36">
-  <link rel="stylesheet" href="css/betting-theme.css?v=36">
+  <link rel="stylesheet" href="css/styles.css?v=37">
+  <link rel="stylesheet" href="css/betting-theme.css?v=37">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -34,7 +34,11 @@
         <p class="week-label">Escolha uma área para continuar.</p>
       </div>
       <div class="topbar-actions">
-        <button class="notification-button secondary-backup" type="button" data-theme-toggle onclick="return window.appThemeToggle && window.appThemeToggle(event);">Auto</button>
+        <div class="theme-switch" aria-label="Tema do app">
+          <button type="button" data-theme-set="auto">Auto</button>
+          <button type="button" data-theme-set="light">Claro</button>
+          <button type="button" data-theme-set="dark">Escuro</button>
+        </div>
         <button id="logoutBtn" class="notification-button secondary-backup" type="button" onclick="window.appNavigate && window.appNavigate('logout'); return false;">Sair</button>
       </div>
     </header>
@@ -52,8 +56,12 @@
       <p id="weekLabel" class="week-label"></p>
     </div>
     <div class="topbar-actions">
-      <a class="back-arrow-link" href="/?menu=principal&v=36" aria-label="Voltar ao menu principal">←</a>
-      <button class="notification-button secondary-backup" type="button" data-theme-toggle onclick="return window.appThemeToggle && window.appThemeToggle(event);">Auto</button>
+      <a class="back-arrow-link" href="/?menu=principal&v=37" aria-label="Voltar ao menu principal">←</a>
+      <div class="theme-switch" aria-label="Tema do app">
+        <button type="button" data-theme-set="auto">Auto</button>
+        <button type="button" data-theme-set="light">Claro</button>
+        <button type="button" data-theme-set="dark">Escuro</button>
+      </div>
       <button id="addPayerBtn" class="icon-button" type="button" aria-label="Adicionar pagador">+</button>
     </div>
   </header>
@@ -129,8 +137,12 @@
         <p id="earningsWeekLabel" class="week-label"></p>
       </div>
       <div class="topbar-actions">
-        <a class="back-arrow-link" href="/?menu=principal&v=36" aria-label="Voltar ao menu principal">←</a>
-        <button class="notification-button secondary-backup" type="button" data-theme-toggle onclick="return window.appThemeToggle && window.appThemeToggle(event);">Auto</button>
+        <a class="back-arrow-link" href="/?menu=principal&v=37" aria-label="Voltar ao menu principal">←</a>
+        <div class="theme-switch" aria-label="Tema do app">
+          <button type="button" data-theme-set="auto">Auto</button>
+          <button type="button" data-theme-set="light">Claro</button>
+          <button type="button" data-theme-set="dark">Escuro</button>
+        </div>
       </div>
     </header>
 
@@ -254,7 +266,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=36" defer></script>
-  <script src="js/app.js?v=36" defer></script>
+  <script src="js/payment-history-data.js?v=37" defer></script>
+  <script src="js/app.js?v=37" defer></script>
 </body>
 </html>

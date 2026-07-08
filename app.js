@@ -93,20 +93,25 @@
   function showToast(message) { $('toast').textContent = message; $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2400); }
   function autoTheme() { const hour = new Date().getHours(); return hour >= 18 || hour < 6 ? 'dark' : 'light'; }
   function currentTheme() { const mode = state.settings?.themeMode || 'auto'; return mode === 'auto' ? autoTheme() : mode; }
-  function themeLabel() { const mode = state.settings?.themeMode || 'auto'; return mode === 'auto' ? `Auto · ${currentTheme() === 'dark' ? 'Escuro' : 'Claro'}` : (mode === 'dark' ? 'Escuro' : 'Claro'); }
   function applyTheme() {
+    const mode = state.settings?.themeMode || 'auto';
     const theme = currentTheme();
     document.body.classList.toggle('theme-dark', theme === 'dark');
     document.body.classList.toggle('theme-light', theme === 'light');
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#080d0b' : '#173f35');
-    document.querySelectorAll('[data-theme-toggle]').forEach(button => { button.textContent = themeLabel(); });
+    document.querySelectorAll('[data-theme-set]').forEach(button => {
+      const active = button.dataset.themeSet === mode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
   }
-  function toggleTheme() {
+  function setThemeMode(mode) {
+    if (!['auto','light','dark'].includes(mode)) return;
     state.settings ||= {};
-    const order = ['auto','light','dark'];
-    const current = state.settings.themeMode || 'auto';
-    state.settings.themeMode = order[(order.indexOf(current) + 1) % order.length] || 'auto';
-    saveState(); applyTheme(); showToast(`Tema: ${themeLabel()}.`);
+    state.settings.themeMode = mode;
+    saveState(); applyTheme();
+    const label = mode === 'auto' ? `Automático (${currentTheme() === 'dark' ? 'escuro' : 'claro'} agora)` : (mode === 'dark' ? 'Escuro' : 'Claro');
+    showToast(`Tema: ${label}.`);
   }
   async function sha256(value) { const bytes = new TextEncoder().encode(value); const hash = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2,'0')).join(''); }
   function closeDialogs() { document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close()); }
@@ -174,12 +179,6 @@
     bind('#openEarningsBtn', () => openModule('earnings'));
     bind('[data-module-home]', openHome);
   }
-  window.appThemeToggle = event => {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
-    toggleTheme();
-    return false;
-  };
   window.appNavigate = destination => {
     if (destination === 'logout') return logout();
     if (destination === 'home') return openHome();
@@ -848,7 +847,9 @@
   });
 
   document.addEventListener('click', event => {
-    const button = event.target.closest('button'); if (!button) return;
+    const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+    const button = target?.closest('button'); if (!button) return;
+    if (button.dataset.themeSet) { event.preventDefault(); setThemeMode(button.dataset.themeSet); return; }
     if (handlePrimaryNavigation(button)) return;
     if (button.id === 'addPayerBtn') openPayer();
     if (button.id === 'notificationBtn') toggleNotifications();
