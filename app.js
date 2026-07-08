@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 11;
+  const DATA_VERSION = 12;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
   const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -341,6 +341,30 @@
     return changed;
   }
 
+  function importAmazonFlexEarningsFromScreens() {
+    state.earnings ||= [];
+    const entries = [
+      ['2026-07-01',119.50,'Bloco Amazon Flex 9:15 AM - 1:45 PM · importado do print'],
+      ['2026-07-02',53.00,'Bloco Amazon Flex 2:00 PM - 4:00 PM · importado do print'],
+      ['2026-07-02',59.00,'Bloco Amazon Flex 11:30 AM - 1:30 PM · Base $54 + Tips $5 · importado do print'],
+      ['2026-07-03',93.00,'Bloco Amazon Flex 11:30 AM - 3:00 PM · importado do print'],
+      ['2026-07-06',119.50,'Bloco Amazon Flex 8:45 AM - 1:15 PM · importado do print'],
+      ['2026-07-07',106.00,'Bloco Amazon Flex 6:30 AM - 10:30 AM · importado do print'],
+      ['2026-07-07',93.00,'Bloco Amazon Flex 2:00 PM - 5:30 PM · importado do print'],
+      ['2026-07-07',867.00,'California PADSA health subsidy · importado do print']
+    ];
+    let changed = false;
+    entries.forEach(([date, amount, notes]) => {
+      const id = `amazon-flex-print-${date}-${String(amount).replace('.','-')}`;
+      const alreadyImported = state.earnings.some(item => item.id === id);
+      const sameManualEntry = state.earnings.some(item => item.date === date && item.app === 'Amazon Flex' && item.person === 'Matheus' && Number(item.amount) === amount);
+      if (alreadyImported || sameManualEntry) return;
+      state.earnings.push({ id, date, app:'Amazon Flex', person:'Matheus', amount, notes, createdAt:`${date}T12:00:00.000Z`, type:'earning', source:'amazon-flex-screens-2026-07' });
+      changed = true;
+    });
+    return changed;
+  }
+
   function migrateState() {
     let changed = state.dataVersion !== DATA_VERSION;
     state.settings = { notifications: false, pushSubscribed: false, pushDeviceId: '', pushEndpoint: '', lastNotificationDate: '', lastBackupAt: '', themeMode: 'auto', ...(state.settings || {}) };
@@ -348,6 +372,7 @@
     state.earningsSettings = { weeklyGoal: 0, ...(state.earningsSettings || {}) };
     state.auth = { ...(state.auth || {}) };
     if (importPaymentHistory()) changed = true;
+    if (importAmazonFlexEarningsFromScreens()) changed = true;
 
     state.payers.forEach(payer => {
       if (!payer.clientCode) { const client = clientDefinitionForPayer(payer); if (client) { payer.clientCode = client.clientCode; changed = true; } }
