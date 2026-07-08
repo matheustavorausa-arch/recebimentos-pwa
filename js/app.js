@@ -519,12 +519,13 @@
     const workRecords = records.filter(isWorkEarning);
     const excludedRecords = records.filter(item => !isWorkEarning(item));
     const workTotal = workRecords.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const excludedTotal = excludedRecords.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const workScore = workScoreFor(workTotal);
     const goal = Number(state.earningsSettings?.weeklyGoal || 0);
-    const dayCount = daysWithEarnings(records);
-    const average = dayCount ? total / dayCount : 0;
-    const diff = total - goal;
-    return { records, total, workRecords, excludedRecords, workTotal, workScore, goal, dayCount, average, diff, appTotals: groupedTotal(records,'app'), personTotals: groupedTotal(records,'person') };
+    const dayCount = daysWithEarnings(workRecords);
+    const average = dayCount ? workTotal / dayCount : 0;
+    const diff = workTotal - goal;
+    return { records, total, workRecords, excludedRecords, workTotal, excludedTotal, workScore, goal, dayCount, average, diff, appTotals: groupedTotal(workRecords,'app'), personTotals: groupedTotal(workRecords,'person') };
   }
   function renderEarnings() {
     state.earnings ||= []; state.earningsSettings ||= { weeklyGoal: 0 };
@@ -532,8 +533,8 @@
     $('earningsWeekLabel').textContent = `${formatShort(start)} a ${formatShort(end)}`;
     $('earningDate').value ||= localDate();
     $('earningsGoalInput').value = state.earningsSettings.weeklyGoal ? Number(state.earningsSettings.weeklyGoal).toFixed(2).replace('.', ',') : '';
-    const { records, total, workTotal, workScore, excludedRecords, goal, dayCount, average, diff, appTotals, personTotals } = earningsStats();
-    $('earningsWeekTotal').textContent = money(total); $('earningsGoalValue').textContent = money(goal); $('earningsDailyAverage').textContent = money(average);
+    const { records, total, workTotal, excludedTotal, workScore, excludedRecords, goal, dayCount, average, diff, appTotals, personTotals } = earningsStats();
+    $('earningsWeekTotal').textContent = money(workTotal); $('earningsGoalValue').textContent = money(goal); $('earningsDailyAverage').textContent = money(average); $('earningsOtherTotal').textContent = money(excludedTotal);
     $('earningsWorkScore').textContent = `${workScore.value}/100`;
     $('earningsWorkScoreLabel').textContent = `${workScore.label} - ${money(workTotal)} em trabalho`;
     const scoreCard = document.querySelector('.score-summary');
@@ -541,7 +542,8 @@
     $('earningsGoalDiff').textContent = goal ? (diff >= 0 ? `${money(diff)} acima da meta` : `${money(Math.abs(diff))} para bater a meta`) : 'Defina uma meta';
     const reportRows = [
       ['Score semanal', `${workScore.label} (${workScore.value}/100) - ${money(workTotal)} em trabalho`],
-      ['Fora do score', excludedRecords.length ? excludedRecords.map(item => `${formatDate(item.date)}: ${money(item.amount)}${item.notes ? ` (${item.notes})` : ''}`).join(' - ') : 'Nenhum evento/subsidio nesta semana'],
+      ['Total de trabalho', `${money(workTotal)} usado em total, media, meta e score`],
+      ['Outros / auxilios', excludedRecords.length ? `${money(excludedTotal)} - ${excludedRecords.map(item => `${formatDate(item.date)}: ${money(item.amount)}${item.notes ? ` (${item.notes})` : ''}`).join(' - ')}` : 'Nenhum evento/subsidio nesta semana'],
       ['Total por aplicativo', Object.entries(appTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'],
       ['Total por pessoa', Object.entries(personTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'],
       ['Meta semanal', goal ? money(goal) : 'Não definida'],
@@ -555,10 +557,11 @@
   function detailRow(label,value) { return `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div></article>`; }
   function earningsRecordRow(item) { return `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${money(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div></article>`; }
   function openEarningsGoal() {
-    const { total, goal, average, dayCount, diff } = earningsStats();
+    const { workTotal, excludedTotal, goal, average, dayCount, diff } = earningsStats();
     $('earningsGoalInput').value = goal ? goal.toFixed(2).replace('.', ',') : '';
     $('earningsGoalDetails').innerHTML = [
-      ['Total da semana', money(total)],
+      ['Total de trabalho', money(workTotal)],
+      ['Outros / auxilios', money(excludedTotal)],
       ['Meta atual', goal ? money(goal) : 'Não definida'],
       ['Diferença', goal ? (diff >= 0 ? `${money(diff)} acima da meta` : `${money(Math.abs(diff))} faltando`) : 'Defina uma meta'],
       ['Média diária', `${money(average)} em ${dayCount} dia(s)`]
@@ -566,10 +569,23 @@
     $('earningsGoalDialog').showModal();
   }
   function openEarningsDetail(type) {
-    const { records, total, workRecords, excludedRecords, workTotal, workScore, goal, average, dayCount, diff, appTotals, personTotals } = earningsStats();
+    const { records, total, workRecords, excludedRecords, workTotal, excludedTotal, workScore, goal, average, dayCount, diff, appTotals, personTotals } = earningsStats();
     if (type === 'goal') { openEarningsGoal(); return; }
     $('earningsDetailTitle').textContent = type === 'average' ? 'Média diária' : 'Total da semana';
     if (type === 'score') $('earningsDetailTitle').textContent = 'Score semanal';
+    if (type === 'other') $('earningsDetailTitle').textContent = 'Outros / auxilios';
+    if (type === 'average') {
+      $('earningsDetailTitle').textContent = 'Media diaria';
+      $('earningsDetailBody').innerHTML = [
+        detailRow('Media diaria', `${money(average)} em ${dayCount} dia(s) com trabalho`),
+        detailRow('Total de trabalho', money(workTotal)),
+        detailRow('Outros / auxilios', `${money(excludedTotal)} fora da media`),
+        detailRow('Meta semanal', goal ? money(goal) : 'Nao definida'),
+        detailRow('Diferenca para meta', goal ? (diff >= 0 ? `${money(diff)} acima` : `${money(Math.abs(diff))} faltando`) : 'Nao definida')
+      ].join('');
+      $('earningsDetailDialog').showModal();
+      return;
+    }
     const rows = type === 'score'
       ? [
           detailRow('Score', `${workScore.label} - ${workScore.value}/100`),
@@ -579,18 +595,27 @@
           detailRow('Fora do score', excludedRecords.length ? excludedRecords.map(item => `${formatDate(item.date)}: ${money(item.amount)}${item.notes ? ` (${item.notes})` : ''}`).join(' - ') : 'Nenhum evento/subsidio nesta semana'),
           ...(workRecords.length ? workRecords.map(earningsRecordRow) : [empty('Nenhum pagamento de trabalho nesta semana.')])
         ]
+      : type === 'other'
+      ? [
+          detailRow('Total separado', money(excludedTotal)),
+          detailRow('Regra', 'Auxilios, eventos e subsidios nao entram no total semanal de trabalho, media diaria, meta ou score.'),
+          ...(excludedRecords.length ? excludedRecords.map(earningsRecordRow) : [empty('Nenhum auxilio/evento nesta semana.')])
+        ]
       : type === 'average'
       ? [
           detailRow('Média diária', `${money(average)} em ${dayCount} dia(s) com ganhos`),
-          detailRow('Total da semana', money(total)),
+          detailRow('Total de trabalho', money(workTotal)),
+          detailRow('Outros / auxilios', `${money(excludedTotal)} fora da media`),
           detailRow('Meta semanal', goal ? money(goal) : 'Não definida'),
           detailRow('Diferença para meta', goal ? (diff >= 0 ? `${money(diff)} acima` : `${money(Math.abs(diff))} faltando`) : 'Não definida')
         ]
       : [
-          detailRow('Total da semana', money(total)),
+          detailRow('Total de trabalho', money(workTotal)),
+          detailRow('Outros / auxilios', `${money(excludedTotal)} fora do total de trabalho`),
+          detailRow('Total geral registrado', money(total)),
           detailRow('Por aplicativo', Object.entries(appTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'),
           detailRow('Por pessoa', Object.entries(personTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'),
-          ...(records.length ? records.map(earningsRecordRow) : [empty('Nenhum ganho registrado nesta semana.')])
+          ...(workRecords.length ? workRecords.map(earningsRecordRow) : [empty('Nenhum ganho de trabalho registrado nesta semana.')])
         ];
     $('earningsDetailBody').innerHTML = rows.join('');
     $('earningsDetailDialog').showModal();

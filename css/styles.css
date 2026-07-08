@@ -21,6 +21,7 @@ main { width:min(760px,100%); margin:auto; padding:18px 14px; }
 .summary-card small { display:block; margin-top:5px; color:var(--red); font-size:.58rem; font-weight:800; }
 .summary-card.received strong { color:var(--green); }.summary-card.pending strong { color:var(--red); }
 .summary-card.score-summary strong { color:var(--amber); }
+.summary-card.other-summary strong { color:var(--amber); }
 .summary-card.score-lazy strong { color:var(--red); }
 .summary-card.score-warming strong { color:var(--amber); }
 .summary-card.score-good strong,.summary-card.score-great strong,.summary-card.score-hard strong { color:var(--green); }
