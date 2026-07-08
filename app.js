@@ -173,7 +173,9 @@
     bind('#openRentalsBtn', () => openModule('rentals'));
     bind('#openEarningsBtn', () => openModule('earnings'));
     bind('[data-module-home]', openHome);
+    bind('[data-theme-toggle]', toggleTheme);
   }
+  window.appThemeToggle = toggleTheme;
   window.appNavigate = destination => {
     if (destination === 'logout') return logout();
     if (destination === 'home') return openHome();
