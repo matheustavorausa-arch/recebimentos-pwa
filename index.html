@@ -16,13 +16,42 @@
   <title>Recebimentos Semanais</title>
 </head>
 <body>
+  <section id="loginScreen" class="auth-screen" hidden>
+    <form id="loginForm" class="auth-card">
+      <p class="eyebrow">APP MEUS RECEBIMENTOS</p>
+      <h1 id="loginTitle">Entrar</h1>
+      <p id="loginHelper">Digite sua senha para acessar o app.</p>
+      <label>Senha<input id="loginPassword" type="password" minlength="4" autocomplete="current-password" required placeholder="Sua senha"></label>
+      <button class="primary" type="submit">Continuar</button>
+    </form>
+  </section>
+
+  <section id="homeScreen" class="home-screen" hidden>
+    <header class="topbar home-topbar">
+      <div>
+        <p class="eyebrow">APP MEUS RECEBIMENTOS</p>
+        <h1>Tela principal</h1>
+        <p class="week-label">Escolha uma área para continuar.</p>
+      </div>
+      <button id="logoutBtn" class="notification-button secondary-backup" type="button">Sair</button>
+    </header>
+    <main class="home-main">
+      <button id="openRentalsBtn" class="module-card" type="button"><span>🏠</span><strong>Aluguéis</strong><small>Sistema atual de recebimentos</small></button>
+      <button id="openEarningsBtn" class="module-card earnings" type="button"><span>💰</span><strong>Ganhos</strong><small>Lançamentos, metas e relatórios</small></button>
+    </main>
+  </section>
+
+  <section id="rentalsModule" class="app-module" hidden>
   <header class="topbar">
     <div>
       <p class="eyebrow">CONTROLE SEMANAL</p>
       <h1>Recebimentos</h1>
       <p id="weekLabel" class="week-label"></p>
     </div>
-    <button id="addPayerBtn" class="icon-button" type="button" aria-label="Adicionar pagador">+</button>
+    <div class="topbar-actions">
+      <button class="notification-button secondary-backup" type="button" data-module-home>Início</button>
+      <button id="addPayerBtn" class="icon-button" type="button" aria-label="Adicionar pagador">+</button>
+    </div>
   </header>
 
   <main>
@@ -86,6 +115,56 @@
     </section>
 
   </main>
+  </section>
+
+  <section id="earningsModule" class="app-module earnings-module" hidden>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">MÓDULO GANHOS</p>
+        <h1>Ganhos</h1>
+        <p id="earningsWeekLabel" class="week-label"></p>
+      </div>
+      <button class="notification-button secondary-backup" type="button" data-module-home>Início</button>
+    </header>
+
+    <main>
+      <section class="summary earnings-summary" aria-label="Resumo dos ganhos">
+        <div class="summary-card received"><span>Total da semana</span><strong id="earningsWeekTotal">R$ 0,00</strong><small>Ganhos registrados</small></div>
+        <div class="summary-card expected"><span>Meta semanal</span><strong id="earningsGoalValue">R$ 0,00</strong><small id="earningsGoalDiff">Defina uma meta</small></div>
+        <div class="summary-card pending"><span>Média diária</span><strong id="earningsDailyAverage">R$ 0,00</strong><small>Dias preenchidos</small></div>
+      </section>
+
+      <section class="earnings-card">
+        <div class="section-heading"><h2>Novo lançamento</h2></div>
+        <form id="earningForm" class="earning-form">
+          <label>Data<input id="earningDate" type="date" required></label>
+          <label>Aplicativo<select id="earningApp" required><option>Amazon Flex</option><option>Grubhub</option><option>Outros</option></select></label>
+          <label>Pessoa<select id="earningPerson" required><option>Matheus</option><option>Esposa</option></select></label>
+          <label>Valor<input id="earningAmount" inputmode="decimal" required placeholder="0,00"></label>
+          <label class="wide">Observação<textarea id="earningNotes" maxlength="180" rows="2" placeholder="Opcional"></textarea></label>
+          <button class="primary" type="submit">Salvar ganho</button>
+        </form>
+      </section>
+
+      <section class="earnings-card">
+        <div class="section-heading"><h2>Meta semanal</h2></div>
+        <form id="earningsGoalForm" class="goal-form">
+          <label>Valor da meta<input id="earningsGoalInput" inputmode="decimal" placeholder="0,00"></label>
+          <button class="notification-button" type="submit">Salvar meta</button>
+        </form>
+      </section>
+
+      <section class="earnings-card">
+        <div class="section-heading"><h2>Relatórios</h2></div>
+        <div id="earningsReports" class="report-grid"></div>
+      </section>
+
+      <section class="earnings-card">
+        <div class="section-heading"><h2>Histórico</h2><span id="earningsCount" class="count"></span></div>
+        <div id="earningsHistory" class="detail-list"></div>
+      </section>
+    </main>
+  </section>
 
   <dialog id="payerDialog" class="dialog">
     <form id="payerForm" method="dialog">

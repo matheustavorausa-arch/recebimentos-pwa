@@ -13,12 +13,26 @@ function pushConfig() {
   return { publicKey, privateKey, subject, ready };
 }
 
-function notificationFromSummary(summary = {}) {
+function notificationFromSummary(summary = {}, kind = 'daily') {
+  if (kind === 'evening') {
+    return {
+      title: 'Ganhos das 21h',
+      body: summary.gainsEveningBody || 'Não esqueça de adicionar os ganhos de hoje.',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: 'daily-earnings-evening',
+      renotify: true,
+      data: { url: '/' }
+    };
+  }
+
   const pendingCount = Number(summary.pendingCount || 0);
   const title = pendingCount ? 'Recebimentos das 9h' : 'Recebimentos em dia';
-  const body = summary.body || (pendingCount
+  const rentalBody = summary.body || (pendingCount
     ? `${pendingCount} pagamento${pendingCount === 1 ? '' : 's'} pendente${pendingCount === 1 ? '' : 's'}.`
     : 'Nenhum pagamento pendente. Tudo em dia!');
+  const gainsBody = summary.gainsMorningBody ? ` ${summary.gainsMorningBody}` : '';
+  const body = `${rentalBody}${gainsBody}`;
 
   return {
     title,

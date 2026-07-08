@@ -2,7 +2,9 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 10;
+  const DATA_VERSION = 11;
+  const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
+  const EARNING_PEOPLE = ['Matheus','Esposa'];
   const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
   const CLIENT_ALIASES = {
     PEDAMZ: ['PED AMZ','PEDRO AMZ','PEDDRO AMZ','PEDRO'],
@@ -23,11 +25,11 @@
   function loadState() {
     try {
       return {
-        payers: [], payments: {}, paymentHistory: [], settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' },
+        payers: [], payments: {}, paymentHistory: [], earnings: [], earningsSettings: { weeklyGoal: 0 }, auth: {}, settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' },
         ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
       };
     } catch {
-      return { payers: [], payments: {}, paymentHistory: [], settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' } };
+      return { payers: [], payments: {}, paymentHistory: [], earnings: [], earningsSettings: { weeklyGoal: 0 }, auth: {}, settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' } };
     }
   }
 
@@ -57,7 +59,9 @@
     Object.entries(incoming.payments || {}).forEach(([week, records]) => { payments[week] = { ...(payments[week] || {}), ...records }; });
     const historyMap = new Map((state.paymentHistory || []).map(record => [record.id, record]));
     (incoming.paymentHistory || []).forEach(record => historyMap.set(record.id, record));
-    state = { ...state, ...incoming, payers: [...payerMap.values()], payments, paymentHistory: [...historyMap.values()], settings: { ...(state.settings || {}), ...(incoming.settings || {}) } };
+    const earningMap = new Map((state.earnings || []).map(record => [record.id, record]));
+    (incoming.earnings || []).forEach(record => earningMap.set(record.id, record));
+    state = { ...state, ...incoming, payers: [...payerMap.values()], payments, paymentHistory: [...historyMap.values()], earnings: [...earningMap.values()], earningsSettings: { ...(state.earningsSettings || {}), ...(incoming.earningsSettings || {}) }, auth: { ...(state.auth || {}), ...(incoming.auth || {}) }, settings: { ...(state.settings || {}), ...(incoming.settings || {}) } };
   }
   async function importBackup(file) {
     if (!file) return;
@@ -87,6 +91,47 @@
   function statusLabel(status) { return { paid: 'Pago', partial: 'Pago Parcial', unpaid: 'Não Pago' }[status] || 'Não Pago'; }
   function paymentFor(payerId, key = weekKey()) { const payer = state.payers.find(item => item.id === payerId); const imported = payer ? importedPaymentFor(payer,key) : null; if (imported?.status === 'paid') return imported; const explicit = payer ? relatedPayers(payer).map(item => state.payments[key]?.[item.id]).find(Boolean) : state.payments[key]?.[payerId]; return explicit || imported || { status: 'unpaid', received: 0, notes: '' }; }
   function showToast(message) { $('toast').textContent = message; $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2400); }
+  async function sha256(value) { const bytes = new TextEncoder().encode(value); const hash = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2,'0')).join(''); }
+  function closeDialogs() { document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close()); }
+  function showScreen(screen) {
+    ['loginScreen','homeScreen','rentalsModule','earningsModule'].forEach(id => { const element = $(id); if (element) element.hidden = id !== screen; });
+    document.body.classList.toggle('auth-mode', screen === 'loginScreen');
+    document.body.classList.toggle('home-mode', screen === 'homeScreen');
+    if (screen === 'rentalsModule') renderAll();
+    if (screen === 'earningsModule') renderEarnings();
+  }
+  function renderAuth() {
+    const configured = Boolean(state.auth?.passwordHash);
+    $('loginTitle').textContent = configured ? 'Entrar' : 'Criar senha';
+    $('loginHelper').textContent = configured ? 'Digite sua senha para acessar o app.' : 'Crie uma senha para proteger os dados deste aparelho.';
+    $('loginPassword').autocomplete = configured ? 'current-password' : 'new-password';
+    showScreen(configured && state.auth?.session ? 'homeScreen' : 'loginScreen');
+  }
+  async function handleLogin(event) {
+    event.preventDefault();
+    const password = $('loginPassword').value.trim();
+    if (password.length < 4) { showToast('Use uma senha com pelo menos 4 caracteres.'); return; }
+    state.auth ||= {};
+    if (!state.auth.passwordHash) {
+      state.auth.salt = uid();
+      state.auth.passwordHash = await sha256(`${state.auth.salt}:${password}`);
+      state.auth.session = true;
+      saveState();
+      $('loginPassword').value = '';
+      showScreen('homeScreen');
+      showToast('Senha criada com sucesso.');
+      return;
+    }
+    const hash = await sha256(`${state.auth.salt}:${password}`);
+    if (hash !== state.auth.passwordHash) { showToast('Senha incorreta.'); return; }
+    state.auth.session = true;
+    saveState();
+    $('loginPassword').value = '';
+    showScreen('homeScreen');
+  }
+  function logout() { state.auth ||= {}; state.auth.session = false; saveState(); closeDialogs(); renderAuth(); }
+  function openModule(module) { closeDialogs(); showScreen(module === 'earnings' ? 'earningsModule' : 'rentalsModule'); }
+  function openHome() { closeDialogs(); showScreen('homeScreen'); }
   function pushDeviceId() { state.settings ||= {}; if (!state.settings.pushDeviceId) { state.settings.pushDeviceId = `device-${uid()}`; saveState(); } return state.settings.pushDeviceId; }
   function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -115,6 +160,8 @@
       : pending.length
         ? `${pending.length} pagamento${pending.length === 1 ? '' : 's'} pendente${pending.length === 1 ? '' : 's'}: ${pendingNames.join(', ')}${pending.length > 3 ? '…' : ''}.`
         : 'Nenhum pagamento pendente. Tudo em dia!';
+    const gainsMorningBody = yesterdayHasEarnings(now) ? '' : 'Você ainda não registrou os ganhos de ontem.';
+    const gainsEveningBody = todayHasEarnings(now) ? 'Ganhos de hoje já registrados. Se faltou algo, atualize antes de dormir.' : 'Não esqueça de adicionar os ganhos de hoje.';
     return {
       generatedAt: new Date().toISOString(),
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles',
@@ -122,6 +169,8 @@
       todayCount: dueToday.length,
       todayNames,
       pendingNames,
+      gainsMorningBody,
+      gainsEveningBody,
       body
     };
   }
@@ -242,6 +291,9 @@
   function migrateState() {
     let changed = state.dataVersion !== DATA_VERSION;
     state.settings = { notifications: false, pushSubscribed: false, pushDeviceId: '', pushEndpoint: '', lastNotificationDate: '', lastBackupAt: '', ...(state.settings || {}) };
+    if (!Array.isArray(state.earnings)) { state.earnings = []; changed = true; }
+    state.earningsSettings = { weeklyGoal: 0, ...(state.earningsSettings || {}) };
+    state.auth = { ...(state.auth || {}) };
     if (importPaymentHistory()) changed = true;
 
     state.payers.forEach(payer => {
@@ -360,6 +412,54 @@
 
   function pendingPayers() {
     return visiblePayers().filter(payer => pendingItems(payer).length > 0);
+  }
+
+  function earningsThisWeek(now = new Date()) {
+    const start = startOfWeek(now); const end = new Date(start); end.setDate(end.getDate() + 7); const startKey = localDate(start); const endKey = localDate(end);
+    return (state.earnings || []).filter(item => item.date >= startKey && item.date < endKey).sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  }
+  function groupedTotal(records, field) {
+    return records.reduce((map, item) => { const key = item[field] || 'Outros'; map[key] = (map[key] || 0) + Number(item.amount || 0); return map; }, {});
+  }
+  function daysWithEarnings(records) { return new Set(records.map(item => item.date)).size; }
+  function yesterdayHasEarnings(now = new Date()) { const date = new Date(now); date.setDate(date.getDate() - 1); return (state.earnings || []).some(item => item.date === localDate(date)); }
+  function todayHasEarnings(now = new Date()) { return (state.earnings || []).some(item => item.date === localDate(now)); }
+  function renderEarnings() {
+    state.earnings ||= []; state.earningsSettings ||= { weeklyGoal: 0 };
+    const start = startOfWeek(); const end = new Date(start); end.setDate(end.getDate() + 6);
+    $('earningsWeekLabel').textContent = `${formatShort(start)} a ${formatShort(end)}`;
+    $('earningDate').value ||= localDate();
+    $('earningsGoalInput').value = state.earningsSettings.weeklyGoal ? Number(state.earningsSettings.weeklyGoal).toFixed(2).replace('.', ',') : '';
+    const records = earningsThisWeek(); const total = records.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const goal = Number(state.earningsSettings.weeklyGoal || 0); const dayCount = daysWithEarnings(records); const average = dayCount ? total / dayCount : 0; const diff = total - goal;
+    $('earningsWeekTotal').textContent = money(total); $('earningsGoalValue').textContent = money(goal); $('earningsDailyAverage').textContent = money(average);
+    $('earningsGoalDiff').textContent = goal ? (diff >= 0 ? `${money(diff)} acima da meta` : `${money(Math.abs(diff))} para bater a meta`) : 'Defina uma meta';
+    const appTotals = groupedTotal(records,'app'); const personTotals = groupedTotal(records,'person');
+    const reportRows = [
+      ['Total por aplicativo', Object.entries(appTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'],
+      ['Total por pessoa', Object.entries(personTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'],
+      ['Meta semanal', goal ? money(goal) : 'Não definida'],
+      ['Diferença para meta', goal ? (diff >= 0 ? `+${money(diff)}` : `-${money(Math.abs(diff))}`) : 'Não definida']
+    ];
+    $('earningsReports').innerHTML = reportRows.map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+    $('earningsCount').textContent = String((state.earnings || []).length);
+    const history = (state.earnings || []).slice().sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0,80);
+    $('earningsHistory').innerHTML = history.length ? history.map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${money(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div><button class="delete" data-delete-earning="${item.id}">Excluir</button></article>`).join('') : empty('Nenhum ganho registrado ainda.');
+  }
+  function addEarning(event) {
+    event.preventDefault();
+    const amount = parseMoney($('earningAmount').value);
+    if (!Number.isFinite(amount) || amount <= 0) { showToast('Informe um valor válido.'); return; }
+    state.earnings ||= [];
+    state.earnings.push({ id:uid(), date:$('earningDate').value || localDate(), app:$('earningApp').value, person:$('earningPerson').value, amount, notes:$('earningNotes').value.trim(), createdAt:new Date().toISOString(), type:'earning' });
+    $('earningAmount').value = ''; $('earningNotes').value = '';
+    saveState(); renderEarnings(); showToast('Ganho registrado.');
+  }
+  function saveEarningsGoal(event) {
+    event.preventDefault();
+    const goal = parseMoney($('earningsGoalInput').value || '0');
+    state.earningsSettings ||= {}; state.earningsSettings.weeklyGoal = Number.isFinite(goal) && goal > 0 ? goal : 0;
+    saveState(); renderEarnings(); showToast('Meta semanal salva.');
   }
 
   function scoreFor(payer) {
@@ -570,7 +670,7 @@
 
   function renderBackupStatus() { const value = state.settings?.lastBackupAt; $('backupStatus').textContent = value ? `Último backup: ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value))}.` : 'Nenhum backup registrado.'; }
 
-  function renderAll() { renderSummary(); renderDashboard(); renderPayers(); renderHistory(); renderNotificationStatus(); renderBackupStatus(); updateTimers(); }
+  function renderAll() { renderSummary(); renderDashboard(); renderPayers(); renderHistory(); renderNotificationStatus(); renderBackupStatus(); if (!$('earningsModule')?.hidden) renderEarnings(); updateTimers(); }
 
   function openPayer(id) {
     const payer = state.payers.find(p => p.id === id);
@@ -695,6 +795,10 @@
 
   document.addEventListener('click', event => {
     const button = event.target.closest('button'); if (!button) return;
+    if (button.id === 'logoutBtn') logout();
+    if (button.id === 'openRentalsBtn') openModule('rentals');
+    if (button.id === 'openEarningsBtn') openModule('earnings');
+    if (button.dataset.moduleHome !== undefined) openHome();
     if (button.id === 'addPayerBtn') openPayer();
     if (button.id === 'notificationBtn') toggleNotifications();
     if (button.id === 'editProfilePayerBtn') editProfilePayer();
@@ -710,6 +814,7 @@
     if (button.dataset.payment) { if ($('pendingDialog').open) $('pendingDialog').close(); if ($('waitingDialog').open) $('waitingDialog').close(); if ($('receivedDialog').open) $('receivedDialog').close(); if ($('profileDialog').open) $('profileDialog').close(); openPayment(button.dataset.payment, button.dataset.week); }
     if (button.dataset.close) $(button.dataset.close).close();
     if (button.dataset.removePenalty) { const payer = state.payers.find(item => item.id === button.dataset.payer); const penalty = payer?.penalties?.find(item => item.id === button.dataset.removePenalty); if (payer && penalty && confirm(`Remover a punição “${penalty.reason}”?`)) { payer.penalties = payer.penalties.filter(item => item.id !== penalty.id); saveState(); renderAll(); renderProfile(payer); showToast('Punição removida.'); } }
+    if (button.dataset.deleteEarning) { const earning = state.earnings?.find(item => item.id === button.dataset.deleteEarning); if (earning && confirm(`Excluir o ganho de ${formatDate(earning.date)} no valor de ${money(earning.amount)}?`)) { state.earnings = state.earnings.filter(item => item.id !== earning.id); saveState(); renderEarnings(); showToast('Ganho excluído.'); } }
     if (button.dataset.delete) { const payer = state.payers.find(p => p.id === button.dataset.delete); if (payer && confirm(`Excluir ${payer.name}? O histórico desse pagador também será removido.`)) { state.payers = state.payers.filter(p => p.id !== payer.id); Object.values(state.payments).forEach(week => delete week[payer.id]); saveState(); renderAll(); showToast('Pagador excluído.'); } }
     if (button.dataset.tab) { document.querySelectorAll('.tab,.panel').forEach(element => element.classList.remove('active')); button.classList.add('active'); $(`${button.dataset.tab}Panel`).classList.add('active'); }
   });
@@ -718,9 +823,12 @@
   $('paymentDueWeek').addEventListener('change', updatePaymentExpected);
   $('backupFileInput').addEventListener('change', event => importBackup(event.target.files?.[0]));
   $('payerSearch').addEventListener('input', event => { payerSearchTerm = event.target.value; renderPayers(); });
+  $('loginForm').addEventListener('submit', handleLogin);
+  $('earningForm').addEventListener('submit', addEarning);
+  $('earningsGoalForm').addEventListener('submit', saveEarningsGoal);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderAll(); checkDailyNotification(); } });
   $('payerDay').innerHTML = DAYS.map((day, index) => `<option value="${index}">${day}</option>`).join('');
-  migrateState(); renderedDay = localDate(); renderAll();
+  migrateState(); renderedDay = localDate(); renderAll(); renderAuth();
   setInterval(() => {
     const today = localDate();
     if (today !== renderedDay) {

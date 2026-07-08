@@ -2,6 +2,11 @@
 
 PWA simples para controle de recebimentos recorrentes. Os dados ficam somente no `localStorage` do navegador.
 
+Agora o app possui uma tela principal com dois módulos:
+
+- **Aluguéis**: sistema original de recebimentos semanais.
+- **Ganhos**: lançamentos manuais de Amazon Flex, Grubhub e outros.
+
 ## Executar localmente
 
 O Service Worker exige HTTP/HTTPS. Na pasta do projeto, use uma das opções:
@@ -37,7 +42,9 @@ Esta versão já tem suporte a Web Push real para funcionar mesmo com o PWA fech
    - `VAPID_PRIVATE_KEY`
    - `VAPID_SUBJECT` com um e-mail, por exemplo `mailto:seuemail@exemplo.com`
    - `CRON_SECRET`, opcional, para proteger o endpoint do cron
-5. O cron está em `vercel.json` como `0 16 * * *`, horário UTC. No fuso America/Los_Angeles em junho, isso equivale a 9h.
+5. Os crons estão em `vercel.json`:
+   - `0 16 * * *` para o lembrete das 9h.
+   - `0 4 * * *` para o lembrete das 21h no fuso America/Los_Angeles em horário de verão.
 6. No iPhone, abra o endereço HTTPS do Vercel pelo Safari, adicione à Tela de Início, abra pelo ícone instalado e toque em **Ativar**.
 
 Observação: o app continua salvando os dados principais no `localStorage`. Para o push funcionar fechado, ele envia ao backend apenas um resumo do lembrete com a inscrição do dispositivo.

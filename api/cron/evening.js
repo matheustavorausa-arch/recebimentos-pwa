@@ -22,7 +22,7 @@ module.exports = async function handler(request, response) {
 
     await Promise.all(devices.map(async device => {
       try {
-        const payload = JSON.stringify(notificationFromSummary(device.summary, 'daily'));
+        const payload = JSON.stringify(notificationFromSummary(device.summary, 'evening'));
         await webpush.sendNotification(device.subscription, payload);
         results.sent += 1;
       } catch (error) {
@@ -31,7 +31,7 @@ module.exports = async function handler(request, response) {
           results.removed += 1;
           return;
         }
-        console.error('Falha ao enviar push', error);
+        console.error('Falha ao enviar push de ganhos', error);
         results.failed += 1;
       }
     }));
@@ -42,7 +42,7 @@ module.exports = async function handler(request, response) {
     return response.status(error.code === 'KV_NOT_CONFIGURED' ? 503 : 500).json({
       error: error.code === 'KV_NOT_CONFIGURED'
         ? 'Armazenamento Redis/KV do Vercel não configurado.'
-        : 'Não foi possível executar o cron.'
+        : 'Não foi possível executar o cron de ganhos.'
     });
   }
 };
