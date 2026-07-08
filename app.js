@@ -91,9 +91,27 @@
   function statusLabel(status) { return { paid: 'Pago', partial: 'Pago Parcial', unpaid: 'Não Pago' }[status] || 'Não Pago'; }
   function paymentFor(payerId, key = weekKey()) { const payer = state.payers.find(item => item.id === payerId); const imported = payer ? importedPaymentFor(payer,key) : null; if (imported?.status === 'paid') return imported; const explicit = payer ? relatedPayers(payer).map(item => state.payments[key]?.[item.id]).find(Boolean) : state.payments[key]?.[payerId]; return explicit || imported || { status: 'unpaid', received: 0, notes: '' }; }
   function showToast(message) { $('toast').textContent = message; $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2400); }
+  function autoTheme() { const hour = new Date().getHours(); return hour >= 18 || hour < 6 ? 'dark' : 'light'; }
+  function currentTheme() { const mode = state.settings?.themeMode || 'auto'; return mode === 'auto' ? autoTheme() : mode; }
+  function themeLabel() { const mode = state.settings?.themeMode || 'auto'; return mode === 'auto' ? `Auto · ${currentTheme() === 'dark' ? 'Escuro' : 'Claro'}` : (mode === 'dark' ? 'Escuro' : 'Claro'); }
+  function applyTheme() {
+    const theme = currentTheme();
+    document.body.classList.toggle('theme-dark', theme === 'dark');
+    document.body.classList.toggle('theme-light', theme === 'light');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#080d0b' : '#173f35');
+    document.querySelectorAll('[data-theme-toggle]').forEach(button => { button.textContent = themeLabel(); });
+  }
+  function toggleTheme() {
+    state.settings ||= {};
+    const order = ['auto','light','dark'];
+    const current = state.settings.themeMode || 'auto';
+    state.settings.themeMode = order[(order.indexOf(current) + 1) % order.length] || 'auto';
+    saveState(); applyTheme(); showToast(`Tema: ${themeLabel()}.`);
+  }
   async function sha256(value) { const bytes = new TextEncoder().encode(value); const hash = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2,'0')).join(''); }
   function closeDialogs() { document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close()); }
   function showScreen(screen) {
+    applyTheme();
     ['loginScreen','homeScreen','rentalsModule','earningsModule'].forEach(id => { const element = $(id); if (element) element.hidden = id !== screen; });
     document.body.classList.toggle('auth-mode', screen === 'loginScreen');
     document.body.classList.toggle('home-mode', screen === 'homeScreen');
@@ -320,7 +338,7 @@
 
   function migrateState() {
     let changed = state.dataVersion !== DATA_VERSION;
-    state.settings = { notifications: false, pushSubscribed: false, pushDeviceId: '', pushEndpoint: '', lastNotificationDate: '', lastBackupAt: '', ...(state.settings || {}) };
+    state.settings = { notifications: false, pushSubscribed: false, pushDeviceId: '', pushEndpoint: '', lastNotificationDate: '', lastBackupAt: '', themeMode: 'auto', ...(state.settings || {}) };
     if (!Array.isArray(state.earnings)) { state.earnings = []; changed = true; }
     state.earningsSettings = { weeklyGoal: 0, ...(state.earningsSettings || {}) };
     state.auth = { ...(state.auth || {}) };
@@ -826,6 +844,7 @@
   document.addEventListener('click', event => {
     const button = event.target.closest('button'); if (!button) return;
     if (handlePrimaryNavigation(button)) return;
+    if (button.dataset.themeToggle !== undefined) toggleTheme();
     if (button.id === 'addPayerBtn') openPayer();
     if (button.id === 'notificationBtn') toggleNotifications();
     if (button.id === 'editProfilePayerBtn') editProfilePayer();
@@ -855,16 +874,18 @@
   $('earningsGoalForm').addEventListener('submit', saveEarningsGoal);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderAll(); checkDailyNotification(); } });
   $('payerDay').innerHTML = DAYS.map((day, index) => `<option value="${index}">${day}</option>`).join('');
-  bindPrimaryNavigation(); migrateState(); renderedDay = localDate(); renderAll(); renderAuth();
+  bindPrimaryNavigation(); migrateState(); applyTheme(); renderedDay = localDate(); renderAll(); renderAuth();
   setInterval(() => {
     const today = localDate();
     if (today !== renderedDay) {
+      applyTheme();
       renderedDay = today; renderAll();
       if ($('pendingDialog').open) renderPendingDetails();
       if ($('waitingDialog').open) renderWaitingDetails();
       if ($('receivedDialog').open) renderReceivedDetails();
       if ($('profileDialog').open) { const payer = state.payers.find(item => item.id === $('profilePayerId').value); if (payer) renderProfile(payer); }
     } else {
+      if ((state.settings?.themeMode || 'auto') === 'auto') applyTheme();
       updateTimers();
     }
   }, 30000);

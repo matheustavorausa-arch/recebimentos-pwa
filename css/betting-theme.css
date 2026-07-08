@@ -14,6 +14,61 @@
 
 html,body { background:var(--bg); }
 body { color:var(--ink); background:radial-gradient(circle at 50% -120px,#183526 0,#0b120f 310px,#080d0b 620px); }
+body.theme-light {
+  --ink:#17211e;
+  --muted:#63736b;
+  --brand:#173f35;
+  --brand-soft:#e9f1ee;
+  --green:#187a57;
+  --red:#bd3a3a;
+  --amber:#b76b12;
+  --surface:#fff;
+  --line:#dfe6e3;
+  --bg:#f5f7f6;
+  --shadow:0 8px 24px rgba(23,63,53,.08);
+  color:var(--ink);
+  background:linear-gradient(180deg,#f8fbfa 0,#eef5f2 260px,#f5f7f6 100%);
+}
+body.theme-light .topbar { color:#fff; background:linear-gradient(135deg,#1d594a 0%,#173f35 70%,#2d7562 100%); border-bottom:1px solid #c9ded6; box-shadow:0 10px 26px rgba(23,63,53,.16); }
+body.theme-light .summary-card,
+body.theme-light .payment-card,
+body.theme-light .payer-stats-card,
+body.theme-light .history-client-card,
+body.theme-light .auth-card,
+body.theme-light .earnings-card,
+body.theme-light .module-card,
+body.theme-light .notification-card,
+body.theme-light .backup-card { color:var(--ink); border-color:var(--line); background:#fff; box-shadow:var(--shadow); }
+body.theme-light .module-card.earnings { background:#fff9dc; border-color:#d7c687; }
+body.theme-light .dialog,
+body.theme-light .dialog-body,
+body.theme-light .dialog form { color:var(--ink); background:#fff; }
+body.theme-light .dialog input,
+body.theme-light .dialog select,
+body.theme-light .dialog textarea,
+body.theme-light .auth-card input,
+body.theme-light .earning-form input,
+body.theme-light .earning-form select,
+body.theme-light .earning-form textarea,
+body.theme-light .goal-form input { color:var(--ink); border-color:#ccd6d2; background:#fff; }
+body.theme-light .stat,
+body.theme-light .profile-fact,
+body.theme-light .detail-item,
+body.theme-light .history-record,
+body.theme-light .report-item { color:var(--ink); border-color:var(--line); background:var(--bg); }
+body.theme-light .tabs { border-color:var(--line); background:rgba(255,255,255,.94); box-shadow:var(--shadow); }
+body.theme-light .tab { color:var(--muted); }
+body.theme-light .tab.active,
+body.theme-light .count,
+body.theme-light .notification-button,
+body.theme-light .card-actions button,
+body.theme-light .detail-item button,
+body.theme-light .history-client-card > button,
+body.theme-light .profile-edit-button,
+body.theme-light .primary { color:#fff; background:var(--brand); }
+body.theme-light .secondary-backup,
+body.theme-light .backup-card .secondary-backup { color:var(--brand); background:var(--brand-soft); box-shadow:inset 0 0 0 1px var(--line); }
+body.theme-light .home-return-button { color:var(--ink); background:linear-gradient(135deg,#fff,#e9f1ee); }
 .topbar { position:relative; overflow:hidden; color:#fff; background:linear-gradient(135deg,#101a16 0%,#08100d 65%,#13291f 100%); border-bottom:1px solid #284536; box-shadow:0 12px 34px rgba(0,0,0,.35); }
 .topbar::after { content:""; position:absolute; right:-50px; bottom:-105px; width:220px; height:220px; border:42px solid rgba(25,220,130,.08); border-radius:50%; }
 .topbar .eyebrow { color:var(--green); opacity:1; }.topbar h1 { text-transform:uppercase; letter-spacing:.01em; }.week-label { color:#a9bbb2; }
