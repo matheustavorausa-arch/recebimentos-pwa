@@ -511,6 +511,16 @@
     return records.reduce((map, item) => { const key = item[field] || 'Outros'; map[key] = (map[key] || 0) + Number(item.amount || 0); return map; }, {});
   }
   function daysWithEarnings(records) { return new Set(records.map(item => item.date)).size; }
+  function workdayCountThisWeek(now = new Date()) {
+    const start = startOfWeek(now);
+    const today = new Date(now); today.setHours(0,0,0,0);
+    let count = 0;
+    for (let i = 0; i < 6; i++) {
+      const day = new Date(start); day.setDate(start.getDate() + i);
+      if (day <= today) count++;
+    }
+    return Math.max(1, Math.min(6, count));
+  }
   function yesterdayHasEarnings(now = new Date()) { const date = new Date(now); date.setDate(date.getDate() - 1); return (state.earnings || []).some(item => item.date === localDate(date)); }
   function todayHasEarnings(now = new Date()) { return (state.earnings || []).some(item => item.date === localDate(now)); }
   function earningsStats() {
@@ -524,7 +534,7 @@
     const excludedTotal = excludedRecords.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const workScore = workScoreFor(workTotal);
     const goal = Number(state.earningsSettings?.weeklyGoal || 0);
-    const dayCount = daysWithEarnings(workRecords);
+    const dayCount = workdayCountThisWeek();
     const average = dayCount ? workTotal / dayCount : 0;
     const diff = workTotal - goal;
     return { records, total, workRecords, excludedRecords, workTotal, excludedTotal, workScore, rentalRecords, rentalTotal, goal, dayCount, average, diff, appTotals: groupedTotal(workRecords,'app'), personTotals: groupedTotal(workRecords,'person') };
@@ -566,7 +576,7 @@
       ['Outros / auxilios', money(excludedTotal)],
       ['Meta atual', goal ? money(goal) : 'Não definida'],
       ['Diferença', goal ? (diff >= 0 ? `${money(diff)} acima da meta` : `${money(Math.abs(diff))} faltando`) : 'Defina uma meta'],
-      ['Média diária', `${money(average)} em ${dayCount} dia(s)`]
+      ['Média diária', `${money(average)} em ${dayCount} dia(s) úteis, seg a sáb`]
     ].map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
     $('earningsGoalDialog').showModal();
   }
@@ -580,7 +590,7 @@
     if (type === 'average') {
       $('earningsDetailTitle').textContent = 'Media diaria';
       $('earningsDetailBody').innerHTML = [
-        detailRow('Media diaria', `${money(average)} em ${dayCount} dia(s) com trabalho`),
+        detailRow('Media diaria', `${money(average)} em ${dayCount} dia(s) uteis, seg a sab`),
         detailRow('Total de trabalho', money(workTotal)),
         detailRow('Outros / auxilios', `${money(excludedTotal)} fora da media`),
         detailRow('Meta semanal', goal ? money(goal) : 'Nao definida'),
