@@ -1,8 +1,17 @@
-const CACHE = 'recebimentos-v28';
-const ASSETS = ['./','./index.html','./css/styles.css','./css/betting-theme.css','./js/payment-history-data.js','./js/app.js','./manifest.webmanifest','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png'];
+const CACHE = 'recebimentos-v29';
+const ASSETS = ['./','./index.html','./css/styles.css?v=29','./css/betting-theme.css?v=29','./js/payment-history-data.js?v=29','./js/app.js?v=29','./manifest.webmanifest','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
-self.addEventListener('fetch', event => { if(event.request.method!=='GET') return; event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request).then(response=>{ const copy=response.clone(); caches.open(CACHE).then(cache=>cache.put(event.request,copy)); return response; }).catch(()=>caches.match('./index.html')))); });
+self.addEventListener('fetch', event => {
+  if(event.request.method!=='GET') return;
+  const request = event.request;
+  const isPage = request.mode === 'navigate';
+  event.respondWith(fetch(request).then(response=>{
+    const copy=response.clone();
+    caches.open(CACHE).then(cache=>cache.put(request,copy));
+    return response;
+  }).catch(()=>caches.match(request).then(cached=>cached||(isPage ? caches.match('./index.html') : undefined))));
+});
 self.addEventListener('push', event => {
   const fallback = { title:'Recebimentos das 9h', body:'Abra o app para conferir os pagamentos de hoje.', icon:'./icons/icon-192.png', badge:'./icons/icon-192.png', tag:'daily-payments', data:{ url:'./' } };
   let payload = fallback;
