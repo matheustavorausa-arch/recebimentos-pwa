@@ -141,6 +141,21 @@
     if (button.matches('[data-module-home]')) { openHome(); return true; }
     return false;
   }
+  function bindPrimaryNavigation() {
+    const bind = (selector, action) => {
+      document.querySelectorAll(selector).forEach(button => {
+        button.addEventListener('click', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          action();
+        });
+      });
+    };
+    bind('#logoutBtn', logout);
+    bind('#openRentalsBtn', () => openModule('rentals'));
+    bind('#openEarningsBtn', () => openModule('earnings'));
+    bind('[data-module-home]', openHome);
+  }
   function pushDeviceId() { state.settings ||= {}; if (!state.settings.pushDeviceId) { state.settings.pushDeviceId = `device-${uid()}`; saveState(); } return state.settings.pushDeviceId; }
   function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -834,7 +849,7 @@
   $('earningsGoalForm').addEventListener('submit', saveEarningsGoal);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderAll(); checkDailyNotification(); } });
   $('payerDay').innerHTML = DAYS.map((day, index) => `<option value="${index}">${day}</option>`).join('');
-  migrateState(); renderedDay = localDate(); renderAll(); renderAuth();
+  bindPrimaryNavigation(); migrateState(); renderedDay = localDate(); renderAll(); renderAuth();
   setInterval(() => {
     const today = localDate();
     if (today !== renderedDay) {
