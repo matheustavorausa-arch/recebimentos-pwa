@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=30">
-  <link rel="stylesheet" href="css/betting-theme.css?v=30">
+  <link rel="stylesheet" href="css/styles.css?v=31">
+  <link rel="stylesheet" href="css/betting-theme.css?v=31">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -55,6 +55,11 @@
   </header>
 
   <main>
+    <a class="home-return-button" href="/?menu=principal&v=31">
+      <span>←</span>
+      <strong>Voltar para o menu principal</strong>
+    </a>
+
     <section class="summary" aria-label="Resumo da semana">
       <button id="waitingSummaryBtn" class="summary-card expected" type="button" aria-label="Ver pagamentos esperando nesta semana"><span>Esperando (semana)</span><strong id="totalExpected">R$ 0,00</strong><small>Toque para ver</small></button>
       <button id="receivedSummaryBtn" class="summary-card received" type="button" aria-label="Ver pagamentos recebidos nesta semana"><span>Recebidos (semana)</span><strong id="totalReceived">R$ 0,00</strong><small>Toque para ver</small></button>
@@ -128,6 +133,11 @@
     </header>
 
     <main>
+      <a class="home-return-button" href="/?menu=principal&v=31">
+        <span>←</span>
+        <strong>Voltar para o menu principal</strong>
+      </a>
+
       <section class="summary earnings-summary" aria-label="Resumo dos ganhos">
         <div class="summary-card received"><span>Total da semana</span><strong id="earningsWeekTotal">R$ 0,00</strong><small>Ganhos registrados</small></div>
         <div class="summary-card expected"><span>Meta semanal</span><strong id="earningsGoalValue">R$ 0,00</strong><small id="earningsGoalDiff">Defina uma meta</small></div>
@@ -247,7 +257,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=30" defer></script>
-  <script src="js/app.js?v=30" defer></script>
+  <script src="js/payment-history-data.js?v=31" defer></script>
+  <script src="js/app.js?v=31" defer></script>
 </body>
 </html>
