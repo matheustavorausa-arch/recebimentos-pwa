@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=29">
-  <link rel="stylesheet" href="css/betting-theme.css?v=29">
+  <link rel="stylesheet" href="css/styles.css?v=30">
+  <link rel="stylesheet" href="css/betting-theme.css?v=30">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -49,7 +49,7 @@
       <p id="weekLabel" class="week-label"></p>
     </div>
     <div class="topbar-actions">
-      <button class="notification-button secondary-backup" type="button" data-module-home onclick="window.appNavigate && window.appNavigate('home'); return false;">Início</button>
+      <a class="notification-button secondary-backup menu-link" href="./?menu=1" aria-label="Voltar ao menu inicial">Menu inicial</a>
       <button id="addPayerBtn" class="icon-button" type="button" aria-label="Adicionar pagador">+</button>
     </div>
   </header>
@@ -124,7 +124,7 @@
         <h1>Ganhos</h1>
         <p id="earningsWeekLabel" class="week-label"></p>
       </div>
-      <button class="notification-button secondary-backup" type="button" data-module-home onclick="window.appNavigate && window.appNavigate('home'); return false;">Início</button>
+      <a class="notification-button secondary-backup menu-link" href="./?menu=1" aria-label="Voltar ao menu inicial">Menu inicial</a>
     </header>
 
     <main>
@@ -247,7 +247,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=29" defer></script>
-  <script src="js/app.js?v=29" defer></script>
+  <script src="js/payment-history-data.js?v=30" defer></script>
+  <script src="js/app.js?v=30" defer></script>
 </body>
 </html>
