@@ -97,6 +97,8 @@
     ['loginScreen','homeScreen','rentalsModule','earningsModule'].forEach(id => { const element = $(id); if (element) element.hidden = id !== screen; });
     document.body.classList.toggle('auth-mode', screen === 'loginScreen');
     document.body.classList.toggle('home-mode', screen === 'homeScreen');
+    document.body.classList.toggle('module-mode', screen === 'rentalsModule' || screen === 'earningsModule');
+    window.scrollTo(0, 0);
     if (screen === 'rentalsModule') renderAll();
     if (screen === 'earningsModule') renderEarnings();
   }
@@ -132,6 +134,13 @@
   function logout() { state.auth ||= {}; state.auth.session = false; saveState(); closeDialogs(); renderAuth(); }
   function openModule(module) { closeDialogs(); showScreen(module === 'earnings' ? 'earningsModule' : 'rentalsModule'); }
   function openHome() { closeDialogs(); showScreen('homeScreen'); }
+  function handlePrimaryNavigation(button) {
+    if (button.id === 'logoutBtn') { logout(); return true; }
+    if (button.id === 'openRentalsBtn') { openModule('rentals'); return true; }
+    if (button.id === 'openEarningsBtn') { openModule('earnings'); return true; }
+    if (button.matches('[data-module-home]')) { openHome(); return true; }
+    return false;
+  }
   function pushDeviceId() { state.settings ||= {}; if (!state.settings.pushDeviceId) { state.settings.pushDeviceId = `device-${uid()}`; saveState(); } return state.settings.pushDeviceId; }
   function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -795,10 +804,7 @@
 
   document.addEventListener('click', event => {
     const button = event.target.closest('button'); if (!button) return;
-    if (button.id === 'logoutBtn') logout();
-    if (button.id === 'openRentalsBtn') openModule('rentals');
-    if (button.id === 'openEarningsBtn') openModule('earnings');
-    if (button.dataset.moduleHome !== undefined) openHome();
+    if (handlePrimaryNavigation(button)) return;
     if (button.id === 'addPayerBtn') openPayer();
     if (button.id === 'notificationBtn') toggleNotifications();
     if (button.id === 'editProfilePayerBtn') editProfilePayer();
