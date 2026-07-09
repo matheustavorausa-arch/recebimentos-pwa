@@ -558,6 +558,21 @@
     document.querySelectorAll('[data-earnings-tab]').forEach(button => button.classList.toggle('active', button.dataset.earningsTab === panel));
     document.querySelectorAll('[data-earnings-panel]').forEach(section => { section.hidden = section.dataset.earningsPanel !== panel; });
   }
+  function chartPath(values, max, height = 82) {
+    const coords = values.map((value, index) => ({ x: 10 + (index * 16), y: height - 12 - ((value / Math.max(1,max)) * (height - 28)) }));
+    if (!coords.length) return '';
+    return coords.slice(1).reduce((path, point) => `${path} L ${point.x.toFixed(1)} ${point.y.toFixed(1)}`, `M ${coords[0].x.toFixed(1)} ${coords[0].y.toFixed(1)}`);
+  }
+  function visualChart(title, current, previous, currentLabel, previousLabel) {
+    const max = Math.max(1, ...current, ...previous);
+    const labels = ['S','T','Q','Q','S','S'];
+    const dots = current.map((value,index) => `<span class="chart-day"><b>${labels[index]}</b><small>${money(value)}</small></span>`).join('');
+    return `<article class="visual-chart"><div class="visual-chart-head"><strong>${escapeHtml(title)}</strong><span class="legend"><i class="current"></i>${escapeHtml(currentLabel)} <i class="previous"></i>${escapeHtml(previousLabel)}</span></div><svg viewBox="0 0 100 82" preserveAspectRatio="none"><path class="previous" d="${chartPath(previous,max)}"></path><path class="current" d="${chartPath(current,max)}"></path></svg><div class="chart-days">${dots}</div></article>`;
+  }
+  function distributionBars(items) {
+    const total = items.reduce((sum, item) => sum + Number(item[1] || 0), 0);
+    return `<article class="distribution-card">${items.map(([label,value,tone]) => `<div class="distribution-row"><span>${escapeHtml(label)}</span><strong>${money(value)}</strong><div class="distribution-track"><i class="${tone}" style="width:${total ? Math.max(3,(value / total) * 100) : 0}%"></i></div></div>`).join('')}</article>`;
+  }
   function renderEarningsStatistics(stats) {
     const currentStart = startOfWeek();
     const previousStart = new Date(currentStart); previousStart.setDate(currentStart.getDate() - 7);
@@ -570,25 +585,28 @@
     const previousWorkTotal = previousWork.reduce((sum, value) => sum + value, 0);
     const previousOtherTotal = previousOther.reduce((sum, value) => sum + value, 0);
     const previousRentalTotal = previousRentals.reduce((sum, value) => sum + value, 0);
+    const goalPct = stats.goal ? Math.min(100, Math.round((stats.workTotal / stats.goal) * 100)) : 0;
+    const weekPct = previousWorkTotal ? Math.round((stats.workTotal / previousWorkTotal) * 100) : (stats.workTotal ? 100 : 0);
+    const avgTarget = stats.goal ? stats.goal / 6 : 0;
+    const avgPct = avgTarget ? Math.min(100, Math.round((stats.average / avgTarget) * 100)) : 0;
+    const ring = (label, value, caption, tone = 'green') => `<article class="stat-ring-card ${tone}"><div class="stat-ring" style="--pct:${Math.max(0,Math.min(100,value))}"><span>${value}%</span></div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(caption)}</small></article>`;
+    if ($('earningsReports')) $('earningsReports').innerHTML = '';
     if ($('earningsStatsSummary')) $('earningsStatsSummary').innerHTML = [
-      ['Trabalho da semana', `${money(stats.workTotal)} - ${compareLabel(stats.workTotal, previousWorkTotal)}`],
-      ['Media diaria', `${money(stats.average)} em ${stats.dayCount} dia(s) uteis`],
-      ['Meta semanal', stats.goal ? `${money(stats.goal)} - ${stats.diff >= 0 ? money(stats.diff) + ' acima' : money(Math.abs(stats.diff)) + ' faltando'}` : 'Nao definida'],
-      ['Score', `${stats.workScore.label} (${stats.workScore.value}/100)`],
-      ['Outros / auxilios', `${money(stats.excludedTotal)} - ${compareLabel(stats.excludedTotal, previousOtherTotal)}`],
-      ['Alugueis visual', `${money(stats.rentalTotal)} - ${compareLabel(stats.rentalTotal, previousRentalTotal)}`],
-      ['Total geral registrado', money(stats.total + stats.rentalTotal)]
-    ].map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
-    if ($('earningsStatsDaily')) $('earningsStatsDaily').innerHTML = currentWork.map((value, index) => {
-      const labels = ['Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
-      return detailRow(labels[index], `${money(value)} - ${compareLabel(value, previousWork[index] || 0)}`);
-    }).join('');
-    if ($('earningsStatsBreakdowns')) $('earningsStatsBreakdowns').innerHTML = [
-      detailRow('Por aplicativo', Object.entries(stats.appTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' - ') || 'Sem trabalho'),
-      detailRow('Por pessoa', Object.entries(stats.personTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' - ') || 'Sem trabalho'),
-      detailRow('Outros por dia', currentOther.map((value,index) => ['Seg','Ter','Qua','Qui','Sex','Sab'][index] + ': ' + money(value)).join(' - ')),
-      detailRow('Alugueis por dia', currentRentals.map((value,index) => ['Seg','Ter','Qua','Qui','Sex','Sab'][index] + ': ' + money(value)).join(' - '))
+      ring('Meta', goalPct, stats.goal ? `${money(stats.workTotal)} de ${money(stats.goal)}` : 'Meta nao definida', goalPct >= 100 ? 'green' : 'amber'),
+      ring('Semana', Math.min(160, weekPct), previousWorkTotal ? `${compareLabel(stats.workTotal, previousWorkTotal)}` : 'Sem base anterior', weekPct >= 100 ? 'green' : 'red'),
+      ring('Media', avgPct, avgTarget ? `${money(stats.average)} por dia util` : 'Defina meta para medir', avgPct >= 100 ? 'green' : 'amber'),
+      ring('Score', stats.workScore.value, stats.workScore.label, stats.workScore.value >= 60 ? 'green' : 'red')
     ].join('');
+    if ($('earningsStatsDaily')) $('earningsStatsDaily').innerHTML = [
+      visualChart('Trabalho', currentWork, previousWork, 'Semana atual', 'Semana passada'),
+      visualChart('Outros / auxilios', currentOther, previousOther, 'Atual', 'Semana passada'),
+      visualChart('Alugueis', currentRentals, previousRentals, 'Atual', 'Semana passada')
+    ].join('');
+    if ($('earningsStatsBreakdowns')) $('earningsStatsBreakdowns').innerHTML = distributionBars([
+      ['Trabalho', stats.workTotal, 'green'],
+      ['Outros', stats.excludedTotal, 'amber'],
+      ['Alugueis', stats.rentalTotal, 'blue']
+    ]);
   }
   function miniTrendHtml(current, previous) {
     const max = Math.max(1, ...current, ...previous);
