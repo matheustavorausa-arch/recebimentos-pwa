@@ -545,6 +545,10 @@
     });
     return totals;
   }
+  function dailyTotalsRows(totals) {
+    const labels = ['Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
+    return totals.map((value, index) => detailRow(labels[index], money(value)));
+  }
   function miniTrendHtml(current, previous) {
     const max = Math.max(1, ...current, ...previous);
     const point = (value, index) => `${6 + (index * 17.6)},${42 - ((value / max) * 30)}`;
@@ -650,9 +654,12 @@
     if (type === 'rentals') $('earningsDetailTitle').textContent = 'Alugueis da semana';
     if (type === 'average') {
       $('earningsDetailTitle').textContent = 'Media diaria';
+      const dailyWork = earningsDailyTotals(startOfWeek(), isWorkEarning);
       $('earningsDetailBody').innerHTML = [
         detailRow('Media diaria', `${money(average)} em ${dayCount} dia(s) uteis, seg a sab`),
         detailRow('Total de trabalho', money(workTotal)),
+        detailRow('Por dia', 'Segunda a sabado, somente trabalho'),
+        ...dailyTotalsRows(dailyWork),
         detailRow('Outros / auxilios', `${money(excludedTotal)} fora da media`),
         detailRow('Meta semanal', goal ? money(goal) : 'Nao definida'),
         detailRow('Diferenca para meta', goal ? (diff >= 0 ? `${money(diff)} acima` : `${money(Math.abs(diff))} faltando`) : 'Nao definida')
