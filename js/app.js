@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 14;
+  const DATA_VERSION = 15;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
   const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -391,6 +391,69 @@
     return changed;
   }
 
+  function normalizedEarningStart(value) {
+    return String(value || '').toUpperCase().replace(/\s+/g, '').replace(/^0/, '');
+  }
+
+  function earningStartFromNotes(item) {
+    const match = String(item?.notes || '').match(/(\d{1,2}:\d{2}\s*[AP]M)\s*-/i);
+    return match ? normalizedEarningStart(match[1]) : '';
+  }
+
+  function importAmazonFlexOldWorkScreens() {
+    state.earnings ||= [];
+    const entries = [
+      ['2026-05-26','10:45 AM','12:15 PM',42.50],
+      ['2026-05-27','9:15 AM','1:15 PM',106.00],
+      ['2026-05-28','4:30 PM','8:30 PM',106.00],
+      ['2026-05-29','9:15 AM','1:45 PM',119.50],
+      ['2026-06-01','3:45 PM','7:15 PM',93.00],
+      ['2026-06-02','8:45 AM','1:15 PM',119.50],
+      ['2026-06-03','3:15 PM','7:45 PM',119.50],
+      ['2026-06-04','7:00 AM','11:00 AM',106.00],
+      ['2026-06-04','12:30 PM','4:30 PM',106.00],
+      ['2026-06-05','12:15 PM','4:15 PM',106.00],
+      ['2026-06-08','1:15 PM','4:45 PM',93.00],
+      ['2026-06-09','10:15 AM','2:45 PM',119.50],
+      ['2026-06-09','3:30 PM','6:30 PM',79.50],
+      ['2026-06-10','6:15 AM','10:15 AM',106.00],
+      ['2026-06-11','6:15 AM','10:15 AM',106.00],
+      ['2026-06-11','11:15 AM','2:15 PM',79.50],
+      ['2026-06-12','1:30 PM','6:00 PM',119.50],
+      ['2026-06-17','9:30 AM','1:30 PM',110.00],
+      ['2026-06-18','7:15 AM','10:45 AM',93.00],
+      ['2026-06-19','6:45 AM','10:45 AM',106.00],
+      ['2026-06-19','11:45 AM','2:45 PM',79.50],
+      ['2026-06-20','6:15 AM','9:45 AM',93.00],
+      ['2026-06-22','6:00 AM','9:00 AM',79.50],
+      ['2026-06-22','9:30 AM','1:00 PM',93.00],
+      ['2026-06-22','2:15 PM','5:45 PM',93.00],
+      ['2026-06-23','5:45 AM','9:45 AM',106.00],
+      ['2026-06-23','10:30 AM','2:30 PM',106.00],
+      ['2026-06-23','1:45 PM','5:15 PM',93.00],
+      ['2026-06-25','6:00 AM','9:00 AM',79.50],
+      ['2026-06-25','9:15 AM','11:15 AM',61.00],
+      ['2026-06-25','1:30 PM','6:00 PM',119.50],
+      ['2026-06-27','8:15 AM','12:45 PM',119.50],
+      ['2026-06-27','12:30 PM','4:30 PM',106.00],
+      ['2026-06-29','5:30 AM','9:30 AM',106.00],
+      ['2026-06-30','11:00 AM','3:00 PM',106.00],
+      ['2026-07-09','6:30 AM','10:30 AM',106.00],
+      ['2026-07-09','10:15 AM','3:15 PM',132.50]
+    ];
+    let changed = false;
+    entries.forEach(([date, start, end, amount]) => {
+      const startKey = normalizedEarningStart(start);
+      const id = `amazon-flex-old-work-${date}-${startKey.toLowerCase()}`;
+      const alreadyImported = state.earnings.some(item => item.id === id);
+      const sameWorkBlock = state.earnings.some(item => item.date === date && item.app === 'Amazon Flex' && item.person === 'Matheus' && earningStartFromNotes(item) === startKey);
+      if (alreadyImported || sameWorkBlock) return;
+      state.earnings.push({ id, date, app:'Amazon Flex', person:'Matheus', amount, notes:`Bloco Amazon Flex ${start} - ${end} - importado dos prints antigos`, category:'work', createdAt:`${date}T12:45:00.000Z`, type:'earning', source:'amazon-flex-old-work-screens-2026' });
+      changed = true;
+    });
+    return changed;
+  }
+
   function isSubsidyText(item) {
     const text = `${item.notes || ''} ${item.source || ''} ${item.kind || ''}`.toLowerCase();
     return /(subsidy|health|padsa|insurance|seguro|auxilio|auxÃ­lio|adicional|evento|event|bonus|bÃ´nus|promo|reembolso|refund)/i.test(text);
@@ -405,6 +468,7 @@
     if (importPaymentHistory()) changed = true;
     if (importAmazonFlexEarningsFromScreens()) changed = true;
     if (importAmazonFlexSecondAccountScreens()) changed = true;
+    if (importAmazonFlexOldWorkScreens()) changed = true;
     state.earnings.forEach(item => {
       if (!item.type) { item.type = 'earning'; changed = true; }
       if (!item.category) { item.category = isSubsidyText(item) ? 'subsidy' : 'work'; changed = true; }
