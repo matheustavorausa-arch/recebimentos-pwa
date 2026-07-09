@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=54">
-  <link rel="stylesheet" href="css/betting-theme.css?v=54">
+  <link rel="stylesheet" href="css/styles.css?v=55">
+  <link rel="stylesheet" href="css/betting-theme.css?v=55">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -177,12 +177,14 @@
       <section class="earnings-card earnings-panel" data-earnings-panel="entries">
         <div class="section-heading"><h2>Novo lançamento</h2></div>
         <form id="earningForm" class="earning-form">
+          <input id="earningId" type="hidden">
           <label>Data<input id="earningDate" type="date" required></label>
           <label>Aplicativo<select id="earningApp" required><option>Amazon Flex</option><option>Grubhub</option><option>Outros</option></select></label>
           <label>Pessoa<select id="earningPerson" required><option>Matheus</option><option>Esposa</option></select></label>
+          <label>Tipo<select id="earningCategory" required><option value="work">Trabalho</option><option value="subsidy">Subsidio / Outros</option></select></label>
           <label>Valor<input id="earningAmount" inputmode="decimal" required placeholder="0,00"></label>
           <label class="wide">Observação<textarea id="earningNotes" maxlength="180" rows="2" placeholder="Opcional"></textarea></label>
-          <button class="primary" type="submit">Salvar ganho</button>
+          <button id="earningSubmitBtn" class="primary" type="submit">Salvar ganho</button>
         </form>
       </section>
 
@@ -301,7 +303,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=54" defer></script>
-  <script src="js/app.js?v=54" defer></script>
+  <script src="js/payment-history-data.js?v=55" defer></script>
+  <script src="js/app.js?v=55" defer></script>
 </body>
 </html>

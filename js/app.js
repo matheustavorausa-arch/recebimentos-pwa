@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 13;
+  const DATA_VERSION = 14;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
   const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -360,7 +360,8 @@
       const alreadyImported = state.earnings.some(item => item.id === id);
       const sameManualEntry = state.earnings.some(item => item.date === date && item.app === 'Amazon Flex' && item.person === 'Matheus' && Number(item.amount) === amount);
       if (alreadyImported || sameManualEntry) return;
-      state.earnings.push({ id, date, app:'Amazon Flex', person:'Matheus', amount, notes, createdAt:`${date}T12:00:00.000Z`, type:'earning', source:'amazon-flex-screens-2026-07' });
+      const category = /subsidy|health|padsa|insurance/i.test(notes) ? 'subsidy' : 'work';
+      state.earnings.push({ id, date, app:'Amazon Flex', person:'Matheus', amount, notes, category, createdAt:`${date}T12:00:00.000Z`, type:'earning', source:'amazon-flex-screens-2026-07' });
       changed = true;
     });
     return changed;
@@ -384,10 +385,15 @@
       const alreadyImported = state.earnings.some(item => item.id === id);
       const sameManualEntry = state.earnings.some(item => item.date === date && item.app === 'Amazon Flex' && item.person === 'Matheus' && Number(item.amount) === amount);
       if (alreadyImported || sameManualEntry) return;
-      state.earnings.push({ id, date, app:'Amazon Flex', person:'Matheus', amount, notes, createdAt:`${date}T12:30:00.000Z`, type:'earning', source:'amazon-flex-second-account-2026-07' });
+      state.earnings.push({ id, date, app:'Amazon Flex', person:'Matheus', amount, notes, category:'work', createdAt:`${date}T12:30:00.000Z`, type:'earning', source:'amazon-flex-second-account-2026-07' });
       changed = true;
     });
     return changed;
+  }
+
+  function isSubsidyText(item) {
+    const text = `${item.notes || ''} ${item.source || ''} ${item.kind || ''}`.toLowerCase();
+    return /(subsidy|health|padsa|insurance|seguro|auxilio|auxÃ­lio|adicional|evento|event|bonus|bÃ´nus|promo|reembolso|refund)/i.test(text);
   }
 
   function migrateState() {
@@ -399,6 +405,11 @@
     if (importPaymentHistory()) changed = true;
     if (importAmazonFlexEarningsFromScreens()) changed = true;
     if (importAmazonFlexSecondAccountScreens()) changed = true;
+    state.earnings.forEach(item => {
+      if (!item.type) { item.type = 'earning'; changed = true; }
+      if (!item.category) { item.category = isSubsidyText(item) ? 'subsidy' : 'work'; changed = true; }
+      if (item.category === 'other') { item.category = 'subsidy'; changed = true; }
+    });
 
     state.payers.forEach(payer => {
       if (!payer.clientCode) { const client = clientDefinitionForPayer(payer); if (client) { payer.clientCode = client.clientCode; changed = true; } }
@@ -523,8 +534,13 @@
     return (state.earnings || []).filter(item => item.date >= startKey && item.date < endKey).sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   }
   function isWorkEarning(item) {
-    const text = `${item.notes || ''} ${item.source || ''} ${item.category || ''} ${item.kind || ''}`.toLowerCase();
+    if (item?.category === 'subsidy') return false;
+    if (item?.category === 'work') return true;
+    const text = `${item.notes || ''} ${item.source || ''} ${item.kind || ''}`.toLowerCase();
     return !/(subsidy|health|padsa|insurance|seguro|adicional|evento|event|bonus|bônus|promo|reembolso|refund)/i.test(text);
+  }
+  function earningCategoryLabel(item) {
+    return isWorkEarning(item) ? 'Trabalho' : 'Subsidio / Outros';
   }
   function workScoreFor(total) {
     if (total >= 2000) return { value: 100, label: 'Trabalhando duro', className: 'hard', next: 'Meta maxima da semana batida' };
@@ -724,8 +740,15 @@
     renderEarningsStatistics(stats);
     $('earningsCount').textContent = String((state.earnings || []).length);
     setTimeout(renderEarningsTrends, 0);
+    setTimeout(renderEditableEarningsHistory, 0);
     const history = (state.earnings || []).slice().sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0,80);
     $('earningsHistory').innerHTML = history.length ? history.map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${dollars(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div><button class="delete" data-delete-earning="${item.id}">Excluir</button></article>`).join('') : empty('Nenhum ganho registrado ainda.');
+  }
+  function renderEditableEarningsHistory() {
+    const target = $('earningsHistory');
+    if (!target) return;
+    const history = (state.earnings || []).slice().sort((a,b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0,80);
+    target.innerHTML = history.length ? history.map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} - ${escapeHtml(item.app)} - ${escapeHtml(item.person)}</strong><span>${dollars(item.amount)} - ${escapeHtml(earningCategoryLabel(item))}${item.notes ? ` - ${escapeHtml(item.notes)}` : ''}</span></div><div class="detail-actions"><button type="button" data-edit-earning="${item.id}">Editar</button><button class="delete" type="button" data-delete-earning="${item.id}">Excluir</button></div></article>`).join('') : empty('Nenhum ganho registrado ainda.');
   }
   function detailRow(label,value) { return `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div></article>`; }
   function earningsRecordRow(item) { return `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${dollars(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div></article>`; }
@@ -823,14 +846,43 @@
     $('earningsDetailBody').innerHTML = rows.join('');
     $('earningsDetailDialog').showModal();
   }
+  function resetEarningForm() {
+    if ($('earningId')) $('earningId').value = '';
+    if ($('earningCategory')) $('earningCategory').value = 'work';
+    if ($('earningAmount')) $('earningAmount').value = '';
+    if ($('earningNotes')) $('earningNotes').value = '';
+    if ($('earningSubmitBtn')) $('earningSubmitBtn').textContent = 'Salvar ganho';
+  }
+  function editEarning(id) {
+    const item = state.earnings?.find(earning => earning.id === id);
+    if (!item) return;
+    setEarningsPanel('entries');
+    $('earningId').value = item.id;
+    $('earningDate').value = item.date || localDate();
+    $('earningApp').value = item.app || 'Outros';
+    $('earningPerson').value = item.person || 'Matheus';
+    $('earningCategory').value = isWorkEarning(item) ? 'work' : 'subsidy';
+    $('earningAmount').value = Number(item.amount || 0).toFixed(2).replace('.', ',');
+    $('earningNotes').value = item.notes || '';
+    $('earningSubmitBtn').textContent = 'Salvar alteracao';
+    $('earningForm').scrollIntoView({ behavior:'smooth', block:'start' });
+  }
   function addEarning(event) {
     event.preventDefault();
     const amount = parseMoney($('earningAmount').value);
     if (!Number.isFinite(amount) || amount <= 0) { showToast('Informe um valor válido.'); return; }
     state.earnings ||= [];
-    state.earnings.push({ id:uid(), date:$('earningDate').value || localDate(), app:$('earningApp').value, person:$('earningPerson').value, amount, notes:$('earningNotes').value.trim(), createdAt:new Date().toISOString(), type:'earning' });
-    $('earningAmount').value = ''; $('earningNotes').value = '';
-    saveState(); renderEarnings(); showToast('Ganho registrado.');
+    const id = $('earningId')?.value || '';
+    const payload = { date:$('earningDate').value || localDate(), app:$('earningApp').value, person:$('earningPerson').value, amount, notes:$('earningNotes').value.trim(), category:$('earningCategory')?.value || 'work', type:'earning', updatedAt:new Date().toISOString() };
+    if (id) {
+      const item = state.earnings.find(earning => earning.id === id);
+      if (!item) { showToast('Lancamento nao encontrado.'); return; }
+      Object.assign(item, payload);
+    } else {
+      state.earnings.push({ ...payload, id:uid(), createdAt:new Date().toISOString() });
+    }
+    resetEarningForm();
+    saveState(); renderEarnings(); showToast(id ? 'Ganho atualizado.' : 'Ganho registrado.');
   }
   function saveEarningsGoal(event) {
     event.preventDefault();
@@ -1195,6 +1247,7 @@
     if (button.dataset.payment) { if ($('pendingDialog').open) $('pendingDialog').close(); if ($('waitingDialog').open) $('waitingDialog').close(); if ($('receivedDialog').open) $('receivedDialog').close(); if ($('profileDialog').open) $('profileDialog').close(); openPayment(button.dataset.payment, button.dataset.week); }
     if (button.dataset.close) $(button.dataset.close).close();
     if (button.dataset.removePenalty) { const payer = state.payers.find(item => item.id === button.dataset.payer); const penalty = payer?.penalties?.find(item => item.id === button.dataset.removePenalty); if (payer && penalty && confirm(`Remover a punição “${penalty.reason}”?`)) { payer.penalties = payer.penalties.filter(item => item.id !== penalty.id); saveState(); renderAll(); renderProfile(payer); showToast('Punição removida.'); } }
+    if (button.dataset.editEarning) { editEarning(button.dataset.editEarning); }
     if (button.dataset.deleteEarning) { const earning = state.earnings?.find(item => item.id === button.dataset.deleteEarning); if (earning && confirm(`Excluir o ganho de ${formatDate(earning.date)} no valor de ${money(earning.amount)}?`)) { state.earnings = state.earnings.filter(item => item.id !== earning.id); saveState(); renderEarnings(); showToast('Ganho excluído.'); } }
     if (button.dataset.delete) { const payer = state.payers.find(p => p.id === button.dataset.delete); if (payer && confirm(`Excluir ${payer.name}? O histórico desse pagador também será removido.`)) { state.payers = state.payers.filter(p => p.id !== payer.id); Object.values(state.payments).forEach(week => delete week[payer.id]); saveState(); renderAll(); showToast('Pagador excluído.'); } }
     if (button.dataset.tab) { document.querySelectorAll('.tab,.panel').forEach(element => element.classList.remove('active')); button.classList.add('active'); $(`${button.dataset.tab}Panel`).classList.add('active'); }
