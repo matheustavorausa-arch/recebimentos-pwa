@@ -82,7 +82,8 @@
   function amountForWeek(payer, week = startOfWeek()) { return Number(termsForWeek(payer,week).amount) || 0; }
   function dueDate(payer, week = startOfWeek()) { const start = startOfWeek(week); const day = Number(termsForWeek(payer,start).day); const d = new Date(start); const offset = day === 0 ? 6 : day - 1; d.setDate(d.getDate() + offset); return d; }
   function firstDueOnOrAfter(date, day) { const result = new Date(date); result.setHours(0, 0, 0, 0); result.setDate(result.getDate() + ((day - result.getDay() + 7) % 7)); return result; }
-  function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0); }
+  function money(value) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value) || 0); }
+  function dollars(value) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value) || 0); }
   function parseMoney(value) { return Number(String(value).trim().replace(/\s/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.')); }
   function escapeHtml(value = '') { return String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c])); }
   function formatShort(date) { return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(date); }
@@ -527,10 +528,10 @@
   }
   function workScoreFor(total) {
     if (total >= 2000) return { value: 100, label: 'Trabalhando duro', className: 'hard', next: 'Meta maxima da semana batida' };
-    if (total >= 1500) return { value: 80, label: 'Trabalhando firme', className: 'great', next: `${money(2000 - total)} para Trabalhando duro` };
-    if (total >= 1000) return { value: 60, label: 'Bom esforco', className: 'good', next: `${money(1500 - total)} para Trabalhando firme` };
-    if (total >= 500) return { value: 40, label: 'Pegando ritmo', className: 'warming', next: `${money(1000 - total)} para Bom esforco` };
-    return { value: total > 0 ? 20 : 0, label: total > 0 ? 'Ta moleza' : 'Sem trabalho na semana', className: 'lazy', next: `${money(500 - total)} para Pegando ritmo` };
+    if (total >= 1500) return { value: 80, label: 'Trabalhando firme', className: 'great', next: `${dollars(2000 - total)} para Trabalhando duro` };
+    if (total >= 1000) return { value: 60, label: 'Bom esforco', className: 'good', next: `${dollars(1500 - total)} para Trabalhando firme` };
+    if (total >= 500) return { value: 40, label: 'Pegando ritmo', className: 'warming', next: `${dollars(1000 - total)} para Bom esforco` };
+    return { value: total > 0 ? 20 : 0, label: total > 0 ? 'Ta moleza' : 'Sem trabalho na semana', className: 'lazy', next: `${dollars(500 - total)} para Pegando ritmo` };
   }
   function groupedTotal(records, field) {
     return records.reduce((map, item) => { const key = item[field] || 'Outros'; map[key] = (map[key] || 0) + Number(item.amount || 0); return map; }, {});
@@ -572,12 +573,12 @@
   }
   function dailyTotalsRows(totals) {
     const labels = ['Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
-    return totals.map((value, index) => detailRow(labels[index], money(value)));
+    return totals.map((value, index) => detailRow(labels[index], dollars(value)));
   }
   function compareLabel(current, previous) {
     const diff = current - previous;
-    if (Math.abs(diff) < 0.01) return `igual a semana anterior (${money(previous)})`;
-    return `${diff > 0 ? '+' : '-'}${money(Math.abs(diff))} vs semana anterior (${money(previous)})`;
+    if (Math.abs(diff) < 0.01) return `igual a semana anterior (${dollars(previous)})`;
+    return `${diff > 0 ? '+' : '-'}${dollars(Math.abs(diff))} vs semana anterior (${dollars(previous)})`;
   }
   function setEarningsPanel(panel = 'entries') {
     document.querySelectorAll('[data-earnings-tab]').forEach(button => button.classList.toggle('active', button.dataset.earningsTab === panel));
@@ -591,12 +592,12 @@
   function visualChart(title, current, previous, currentLabel, previousLabel) {
     const max = Math.max(1, ...current, ...previous);
     const labels = ['S','T','Q','Q','S','S'];
-    const dots = current.map((value,index) => `<span class="chart-day"><b>${labels[index]}</b><small>${money(value)}</small></span>`).join('');
+    const dots = current.map((value,index) => `<span class="chart-day"><b>${labels[index]}</b><small>${dollars(value)}</small></span>`).join('');
     return `<article class="visual-chart"><div class="visual-chart-head"><strong>${escapeHtml(title)}</strong><span class="legend"><i class="current"></i>${escapeHtml(currentLabel)} <i class="previous"></i>${escapeHtml(previousLabel)}</span></div><svg viewBox="0 0 100 82" preserveAspectRatio="none"><path class="previous" d="${chartPath(previous,max)}"></path><path class="current" d="${chartPath(current,max)}"></path></svg><div class="chart-days">${dots}</div></article>`;
   }
   function distributionBars(items) {
     const total = items.reduce((sum, item) => sum + Number(item[1] || 0), 0);
-    return `<article class="distribution-card">${items.map(([label,value,tone]) => `<div class="distribution-row"><span>${escapeHtml(label)}</span><strong>${money(value)}</strong><div class="distribution-track"><i class="${tone}" style="width:${total ? Math.max(3,(value / total) * 100) : 0}%"></i></div></div>`).join('')}</article>`;
+    return `<article class="distribution-card">${items.map(([label,value,tone]) => `<div class="distribution-row"><span>${escapeHtml(label)}</span><strong>${dollars(value)}</strong><div class="distribution-track"><i class="${tone}" style="width:${total ? Math.max(3,(value / total) * 100) : 0}%"></i></div></div>`).join('')}</article>`;
   }
   function renderEarningsStatistics(stats) {
     const currentStart = startOfWeek();
@@ -617,9 +618,9 @@
     const ring = (label, value, caption, tone = 'green') => `<article class="stat-ring-card ${tone}"><div class="stat-ring" style="--pct:${Math.max(0,Math.min(100,value))}"><span>${value}%</span></div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(caption)}</small></article>`;
     if ($('earningsReports')) $('earningsReports').innerHTML = '';
     if ($('earningsStatsSummary')) $('earningsStatsSummary').innerHTML = [
-      ring('Meta', goalPct, stats.goal ? `${money(stats.workTotal)} de ${money(stats.goal)}` : 'Meta nao definida', goalPct >= 100 ? 'green' : 'amber'),
+      ring('Meta', goalPct, stats.goal ? `${dollars(stats.workTotal)} de ${dollars(stats.goal)}` : 'Meta nao definida', goalPct >= 100 ? 'green' : 'amber'),
       ring('Semana', Math.min(160, weekPct), previousWorkTotal ? `${compareLabel(stats.workTotal, previousWorkTotal)}` : 'Sem base anterior', weekPct >= 100 ? 'green' : 'red'),
-      ring('Media', avgPct, avgTarget ? `${money(stats.average)} por dia util` : 'Defina meta para medir', avgPct >= 100 ? 'green' : 'amber'),
+      ring('Media', avgPct, avgTarget ? `${dollars(stats.average)} por dia util` : 'Defina meta para medir', avgPct >= 100 ? 'green' : 'amber'),
       ring('Score', stats.workScore.value, stats.workScore.label, stats.workScore.value >= 60 ? 'green' : 'red')
     ].join('');
     if ($('earningsStatsDaily')) $('earningsStatsDaily').innerHTML = [
@@ -704,41 +705,41 @@
     $('earningsDailyGoalInput').value = Number(state.earningsSettings.dailyGoal || 250).toFixed(2).replace('.', ',');
     const stats = earningsStats();
     const { records, total, workTotal, excludedTotal, workScore, excludedRecords, rentalTotal, goal, dayCount, average, diff, appTotals, personTotals } = stats;
-    $('earningsWeekTotal').textContent = money(workTotal); $('earningsGoalValue').textContent = money(goal); $('earningsDailyAverage').textContent = money(average); $('earningsOtherTotal').textContent = money(excludedTotal); $('earningsRentalTotal').textContent = money(rentalTotal);
+    $('earningsWeekTotal').textContent = dollars(workTotal); $('earningsGoalValue').textContent = dollars(goal); $('earningsDailyAverage').textContent = dollars(average); $('earningsOtherTotal').textContent = dollars(excludedTotal); $('earningsRentalTotal').textContent = dollars(rentalTotal);
     $('earningsWorkScore').textContent = `${workScore.value}/100`;
-    $('earningsWorkScoreLabel').textContent = `${workScore.label} - ${money(workTotal)} em trabalho`;
+    $('earningsWorkScoreLabel').textContent = `${workScore.label} - ${dollars(workTotal)} em trabalho`;
     const scoreCard = document.querySelector('.score-summary');
     if (scoreCard) { scoreCard.classList.remove('score-lazy','score-warming','score-good','score-great','score-hard'); scoreCard.classList.add(`score-${workScore.className}`); }
-    $('earningsGoalDiff').textContent = goal ? (diff >= 0 ? `${money(diff)} acima da meta` : `${money(Math.abs(diff))} para bater a meta`) : 'Defina uma meta';
+    $('earningsGoalDiff').textContent = goal ? (diff >= 0 ? `${dollars(diff)} acima da meta` : `${dollars(Math.abs(diff))} para bater a meta`) : 'Defina uma meta';
     const reportRows = [
-      ['Score semanal', `${workScore.label} (${workScore.value}/100) - ${money(workTotal)} em trabalho`],
-      ['Total de trabalho', `${money(workTotal)} usado em total, media, meta e score`],
-      ['Outros / auxilios', excludedRecords.length ? `${money(excludedTotal)} - ${excludedRecords.map(item => `${formatDate(item.date)}: ${money(item.amount)}${item.notes ? ` (${item.notes})` : ''}`).join(' - ')}` : 'Nenhum evento/subsidio nesta semana'],
-      ['Total por aplicativo', Object.entries(appTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'],
-      ['Total por pessoa', Object.entries(personTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'],
-      ['Meta semanal', goal ? money(goal) : 'Não definida'],
-      ['Diferença para meta', goal ? (diff >= 0 ? `+${money(diff)}` : `-${money(Math.abs(diff))}`) : 'Não definida']
+      ['Score semanal', `${workScore.label} (${workScore.value}/100) - ${dollars(workTotal)} em trabalho`],
+      ['Total de trabalho', `${dollars(workTotal)} usado em total, media, meta e score`],
+      ['Outros / auxilios', excludedRecords.length ? `${dollars(excludedTotal)} - ${excludedRecords.map(item => `${formatDate(item.date)}: ${dollars(item.amount)}${item.notes ? ` (${item.notes})` : ''}`).join(' - ')}` : 'Nenhum evento/subsidio nesta semana'],
+      ['Total por aplicativo', Object.entries(appTotals).map(([name,value]) => `${name}: ${dollars(value)}`).join(' · ') || 'Sem lançamentos'],
+      ['Total por pessoa', Object.entries(personTotals).map(([name,value]) => `${name}: ${dollars(value)}`).join(' · ') || 'Sem lançamentos'],
+      ['Meta semanal', goal ? dollars(goal) : 'Não definida'],
+      ['Diferença para meta', goal ? (diff >= 0 ? `+${dollars(diff)}` : `-${dollars(Math.abs(diff))}`) : 'Não definida']
     ];
     $('earningsReports').innerHTML = reportRows.map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
     renderEarningsStatistics(stats);
     $('earningsCount').textContent = String((state.earnings || []).length);
     setTimeout(renderEarningsTrends, 0);
     const history = (state.earnings || []).slice().sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0,80);
-    $('earningsHistory').innerHTML = history.length ? history.map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${money(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div><button class="delete" data-delete-earning="${item.id}">Excluir</button></article>`).join('') : empty('Nenhum ganho registrado ainda.');
+    $('earningsHistory').innerHTML = history.length ? history.map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${dollars(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div><button class="delete" data-delete-earning="${item.id}">Excluir</button></article>`).join('') : empty('Nenhum ganho registrado ainda.');
   }
   function detailRow(label,value) { return `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div></article>`; }
-  function earningsRecordRow(item) { return `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${money(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div></article>`; }
+  function earningsRecordRow(item) { return `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${dollars(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div></article>`; }
   function openEarningsGoal() {
     const { workTotal, excludedTotal, goal, dailyGoal, average, dayCount, diff } = earningsStats();
     $('earningsGoalInput').value = goal ? goal.toFixed(2).replace('.', ',') : '';
     $('earningsDailyGoalInput').value = Number(dailyGoal || 250).toFixed(2).replace('.', ',');
     $('earningsGoalDetails').innerHTML = [
-      ['Total de trabalho', money(workTotal)],
-      ['Outros / auxilios', money(excludedTotal)],
-      ['Meta diaria', money(dailyGoal || 250)],
-      ['Meta atual', goal ? money(goal) : 'Não definida'],
-      ['Diferença', goal ? (diff >= 0 ? `${money(diff)} acima da meta` : `${money(Math.abs(diff))} faltando`) : 'Defina uma meta'],
-      ['Média diária', `${money(average)} em ${dayCount} dia(s) úteis, seg a sáb`]
+      ['Total de trabalho', dollars(workTotal)],
+      ['Outros / auxilios', dollars(excludedTotal)],
+      ['Meta diaria', dollars(dailyGoal || 250)],
+      ['Meta atual', goal ? dollars(goal) : 'Não definida'],
+      ['Diferença', goal ? (diff >= 0 ? `${dollars(diff)} acima da meta` : `${dollars(Math.abs(diff))} faltando`) : 'Defina uma meta'],
+      ['Média diária', `${dollars(average)} em ${dayCount} dia(s) úteis, seg a sáb`]
     ].map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
     $('earningsGoalDialog').showModal();
   }
@@ -753,13 +754,13 @@
       $('earningsDetailTitle').textContent = 'Media diaria';
       const dailyWork = earningsDailyTotals(startOfWeek(), isWorkEarning);
       $('earningsDetailBody').innerHTML = [
-        detailRow('Media diaria', `${money(average)} em ${dayCount} dia(s) uteis, seg a sab`),
-        detailRow('Total de trabalho', money(workTotal)),
+        detailRow('Media diaria', `${dollars(average)} em ${dayCount} dia(s) uteis, seg a sab`),
+        detailRow('Total de trabalho', dollars(workTotal)),
         detailRow('Por dia', 'Segunda a sabado, somente trabalho'),
         ...dailyTotalsRows(dailyWork),
-        detailRow('Outros / auxilios', `${money(excludedTotal)} fora da media`),
-        detailRow('Meta semanal', goal ? money(goal) : 'Nao definida'),
-        detailRow('Diferenca para meta', goal ? (diff >= 0 ? `${money(diff)} acima` : `${money(Math.abs(diff))} faltando`) : 'Nao definida')
+        detailRow('Outros / auxilios', `${dollars(excludedTotal)} fora da media`),
+        detailRow('Meta semanal', goal ? dollars(goal) : 'Nao definida'),
+        detailRow('Diferenca para meta', goal ? (diff >= 0 ? `${dollars(diff)} acima` : `${dollars(Math.abs(diff))} faltando`) : 'Nao definida')
       ].join('');
       $('earningsDetailDialog').showModal();
       return;
@@ -767,38 +768,38 @@
     const rows = type === 'score'
       ? [
           detailRow('Score', `${workScore.label} - ${workScore.value}/100`),
-          detailRow('Valor que conta', `${money(workTotal)} em pagamentos de trabalho`),
+          detailRow('Valor que conta', `${dollars(workTotal)} em pagamentos de trabalho`),
           detailRow('Proxima etapa', workScore.next),
           detailRow('Escala', '0-499 Ta moleza - 500+ Pegando ritmo - 1000+ Bom esforco - 1500+ Trabalhando firme - 2000+ Trabalhando duro'),
-          detailRow('Fora do score', excludedRecords.length ? excludedRecords.map(item => `${formatDate(item.date)}: ${money(item.amount)}${item.notes ? ` (${item.notes})` : ''}`).join(' - ') : 'Nenhum evento/subsidio nesta semana'),
+          detailRow('Fora do score', excludedRecords.length ? excludedRecords.map(item => `${formatDate(item.date)}: ${dollars(item.amount)}${item.notes ? ` (${item.notes})` : ''}`).join(' - ') : 'Nenhum evento/subsidio nesta semana'),
           ...(workRecords.length ? workRecords.map(earningsRecordRow) : [empty('Nenhum pagamento de trabalho nesta semana.')])
         ]
       : type === 'other'
       ? [
-          detailRow('Total separado', money(excludedTotal)),
+          detailRow('Total separado', dollars(excludedTotal)),
           detailRow('Regra', 'Auxilios, eventos e subsidios nao entram no total semanal de trabalho, media diaria, meta ou score.'),
           ...(excludedRecords.length ? excludedRecords.map(earningsRecordRow) : [empty('Nenhum auxilio/evento nesta semana.')])
         ]
       : type === 'rentals'
       ? [
-          detailRow('Total recebido em alugueis', money(rentalTotal)),
+          detailRow('Total recebido em alugueis', dollars(rentalTotal)),
           detailRow('Regra', 'Valor apenas visual. Nao entra no total semanal de ganhos, media, meta ou score.'),
-          ...(rentalRecords.length ? rentalRecords.map(item => detailRow(item.payer.name, `${money(item.received)} recebido em ${formatDate(item.payment.receivedDate)}`)) : [empty('Nenhum aluguel recebido nesta semana.')])
+          ...(rentalRecords.length ? rentalRecords.map(item => detailRow(item.payer.name, `${dollars(item.received)} recebido em ${formatDate(item.payment.receivedDate)}`)) : [empty('Nenhum aluguel recebido nesta semana.')])
         ]
       : type === 'average'
       ? [
-          detailRow('Média diária', `${money(average)} em ${dayCount} dia(s) com ganhos`),
-          detailRow('Total de trabalho', money(workTotal)),
-          detailRow('Outros / auxilios', `${money(excludedTotal)} fora da media`),
-          detailRow('Meta semanal', goal ? money(goal) : 'Não definida'),
-          detailRow('Diferença para meta', goal ? (diff >= 0 ? `${money(diff)} acima` : `${money(Math.abs(diff))} faltando`) : 'Não definida')
+          detailRow('Média diária', `${dollars(average)} em ${dayCount} dia(s) com ganhos`),
+          detailRow('Total de trabalho', dollars(workTotal)),
+          detailRow('Outros / auxilios', `${dollars(excludedTotal)} fora da media`),
+          detailRow('Meta semanal', goal ? dollars(goal) : 'Não definida'),
+          detailRow('Diferença para meta', goal ? (diff >= 0 ? `${dollars(diff)} acima` : `${dollars(Math.abs(diff))} faltando`) : 'Não definida')
         ]
       : [
-          detailRow('Total de trabalho', money(workTotal)),
-          detailRow('Outros / auxilios', `${money(excludedTotal)} fora do total de trabalho`),
-          detailRow('Total geral registrado', money(total)),
-          detailRow('Por aplicativo', Object.entries(appTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'),
-          detailRow('Por pessoa', Object.entries(personTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' · ') || 'Sem lançamentos'),
+          detailRow('Total de trabalho', dollars(workTotal)),
+          detailRow('Outros / auxilios', `${dollars(excludedTotal)} fora do total de trabalho`),
+          detailRow('Total geral registrado', dollars(total)),
+          detailRow('Por aplicativo', Object.entries(appTotals).map(([name,value]) => `${name}: ${dollars(value)}`).join(' · ') || 'Sem lançamentos'),
+          detailRow('Por pessoa', Object.entries(personTotals).map(([name,value]) => `${name}: ${dollars(value)}`).join(' · ') || 'Sem lançamentos'),
           ...(workRecords.length ? workRecords.map(earningsRecordRow) : [empty('Nenhum ganho de trabalho registrado nesta semana.')])
         ];
     $('earningsDetailBody').innerHTML = rows.join('');
