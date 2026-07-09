@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 12;
+  const DATA_VERSION = 13;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
   const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -25,11 +25,11 @@
   function loadState() {
     try {
       return {
-        payers: [], payments: {}, paymentHistory: [], earnings: [], earningsSettings: { weeklyGoal: 0 }, auth: {}, settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' },
+        payers: [], payments: {}, paymentHistory: [], earnings: [], earningsSettings: { weeklyGoal: 0, dailyGoal: 250 }, auth: {}, settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' },
         ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
       };
     } catch {
-      return { payers: [], payments: {}, paymentHistory: [], earnings: [], earningsSettings: { weeklyGoal: 0 }, auth: {}, settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' } };
+      return { payers: [], payments: {}, paymentHistory: [], earnings: [], earningsSettings: { weeklyGoal: 0, dailyGoal: 250 }, auth: {}, settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' } };
     }
   }
 
@@ -365,14 +365,39 @@
     return changed;
   }
 
+  function importAmazonFlexSecondAccountScreens() {
+    state.earnings ||= [];
+    const entries = [
+      ['2026-07-01',93.00,'Amazon Flex outra conta 6:00 AM - 9:30 AM · importado do print'],
+      ['2026-07-02',81.00,'Amazon Flex outra conta 9:15 AM - 11:15 AM · Base $54 + Tips $27 · importado do print'],
+      ['2026-07-02',61.00,'Amazon Flex outra conta 1:45 PM - 3:45 PM · Base $54 + Tips $7 · importado do print'],
+      ['2026-07-03',106.00,'Amazon Flex outra conta 2:00 PM - 6:00 PM · importado do print'],
+      ['2026-07-03',79.00,'Amazon Flex outra conta 9:15 AM - 11:15 AM · Base $54 + Tips $25 · importado do print'],
+      ['2026-07-06',106.00,'Amazon Flex outra conta 5:30 AM - 9:30 AM · importado do print'],
+      ['2026-07-06',54.00,'Amazon Flex outra conta 12:30 PM - 2:30 PM · Base $54 + Tips $0 · importado do print'],
+      ['2026-07-07',79.50,'Amazon Flex outra conta 9:15 AM - 12:15 PM · importado do print']
+    ];
+    let changed = false;
+    entries.forEach(([date, amount, notes], index) => {
+      const id = `amazon-flex-second-account-2026-07-${index + 1}`;
+      const alreadyImported = state.earnings.some(item => item.id === id);
+      const sameManualEntry = state.earnings.some(item => item.date === date && item.app === 'Amazon Flex' && item.person === 'Matheus' && Number(item.amount) === amount);
+      if (alreadyImported || sameManualEntry) return;
+      state.earnings.push({ id, date, app:'Amazon Flex', person:'Matheus', amount, notes, createdAt:`${date}T12:30:00.000Z`, type:'earning', source:'amazon-flex-second-account-2026-07' });
+      changed = true;
+    });
+    return changed;
+  }
+
   function migrateState() {
     let changed = state.dataVersion !== DATA_VERSION;
     state.settings = { notifications: false, pushSubscribed: false, pushDeviceId: '', pushEndpoint: '', lastNotificationDate: '', lastBackupAt: '', themeMode: 'auto', ...(state.settings || {}) };
     if (!Array.isArray(state.earnings)) { state.earnings = []; changed = true; }
-    state.earningsSettings = { weeklyGoal: 0, ...(state.earningsSettings || {}) };
+    state.earningsSettings = { weeklyGoal: 0, dailyGoal: 250, ...(state.earningsSettings || {}) };
     state.auth = { ...(state.auth || {}) };
     if (importPaymentHistory()) changed = true;
     if (importAmazonFlexEarningsFromScreens()) changed = true;
+    if (importAmazonFlexSecondAccountScreens()) changed = true;
 
     state.payers.forEach(payer => {
       if (!payer.clientCode) { const client = clientDefinitionForPayer(payer); if (client) { payer.clientCode = client.clientCode; changed = true; } }
@@ -587,7 +612,7 @@
     const previousRentalTotal = previousRentals.reduce((sum, value) => sum + value, 0);
     const goalPct = stats.goal ? Math.min(100, Math.round((stats.workTotal / stats.goal) * 100)) : 0;
     const weekPct = previousWorkTotal ? Math.round((stats.workTotal / previousWorkTotal) * 100) : (stats.workTotal ? 100 : 0);
-    const avgTarget = stats.goal ? stats.goal / 6 : 0;
+    const avgTarget = Number(stats.dailyGoal || 250);
     const avgPct = avgTarget ? Math.min(100, Math.round((stats.average / avgTarget) * 100)) : 0;
     const ring = (label, value, caption, tone = 'green') => `<article class="stat-ring-card ${tone}"><div class="stat-ring" style="--pct:${Math.max(0,Math.min(100,value))}"><span>${value}%</span></div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(caption)}</small></article>`;
     if ($('earningsReports')) $('earningsReports').innerHTML = '';
@@ -664,17 +689,19 @@
     const excludedTotal = excludedRecords.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const workScore = workScoreFor(workTotal);
     const goal = Number(state.earningsSettings?.weeklyGoal || 0);
+    const dailyGoal = Number(state.earningsSettings?.dailyGoal || 250);
     const dayCount = workdayCountThisWeek();
     const average = dayCount ? workTotal / dayCount : 0;
     const diff = workTotal - goal;
-    return { records, total, workRecords, excludedRecords, workTotal, excludedTotal, workScore, rentalRecords, rentalTotal, goal, dayCount, average, diff, appTotals: groupedTotal(workRecords,'app'), personTotals: groupedTotal(workRecords,'person') };
+    return { records, total, workRecords, excludedRecords, workTotal, excludedTotal, workScore, rentalRecords, rentalTotal, goal, dailyGoal, dayCount, average, diff, appTotals: groupedTotal(workRecords,'app'), personTotals: groupedTotal(workRecords,'person') };
   }
   function renderEarnings() {
-    state.earnings ||= []; state.earningsSettings ||= { weeklyGoal: 0 };
+    state.earnings ||= []; state.earningsSettings ||= { weeklyGoal: 0, dailyGoal: 250 };
     const start = startOfWeek(); const end = new Date(start); end.setDate(end.getDate() + 6);
     $('earningsWeekLabel').textContent = `${formatShort(start)} a ${formatShort(end)}`;
     $('earningDate').value ||= localDate();
     $('earningsGoalInput').value = state.earningsSettings.weeklyGoal ? Number(state.earningsSettings.weeklyGoal).toFixed(2).replace('.', ',') : '';
+    $('earningsDailyGoalInput').value = Number(state.earningsSettings.dailyGoal || 250).toFixed(2).replace('.', ',');
     const stats = earningsStats();
     const { records, total, workTotal, excludedTotal, workScore, excludedRecords, rentalTotal, goal, dayCount, average, diff, appTotals, personTotals } = stats;
     $('earningsWeekTotal').textContent = money(workTotal); $('earningsGoalValue').textContent = money(goal); $('earningsDailyAverage').textContent = money(average); $('earningsOtherTotal').textContent = money(excludedTotal); $('earningsRentalTotal').textContent = money(rentalTotal);
@@ -702,11 +729,13 @@
   function detailRow(label,value) { return `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div></article>`; }
   function earningsRecordRow(item) { return `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${money(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div></article>`; }
   function openEarningsGoal() {
-    const { workTotal, excludedTotal, goal, average, dayCount, diff } = earningsStats();
+    const { workTotal, excludedTotal, goal, dailyGoal, average, dayCount, diff } = earningsStats();
     $('earningsGoalInput').value = goal ? goal.toFixed(2).replace('.', ',') : '';
+    $('earningsDailyGoalInput').value = Number(dailyGoal || 250).toFixed(2).replace('.', ',');
     $('earningsGoalDetails').innerHTML = [
       ['Total de trabalho', money(workTotal)],
       ['Outros / auxilios', money(excludedTotal)],
+      ['Meta diaria', money(dailyGoal || 250)],
       ['Meta atual', goal ? money(goal) : 'Não definida'],
       ['Diferença', goal ? (diff >= 0 ? `${money(diff)} acima da meta` : `${money(Math.abs(diff))} faltando`) : 'Defina uma meta'],
       ['Média diária', `${money(average)} em ${dayCount} dia(s) úteis, seg a sáb`]
@@ -787,8 +816,11 @@
   function saveEarningsGoal(event) {
     event.preventDefault();
     const goal = parseMoney($('earningsGoalInput').value || '0');
-    state.earningsSettings ||= {}; state.earningsSettings.weeklyGoal = Number.isFinite(goal) && goal > 0 ? goal : 0;
-    saveState(); renderEarnings(); if ($('earningsGoalDialog').open) $('earningsGoalDialog').close(); showToast('Meta semanal salva.');
+    const dailyGoal = parseMoney($('earningsDailyGoalInput').value || '250');
+    state.earningsSettings ||= {};
+    state.earningsSettings.weeklyGoal = Number.isFinite(goal) && goal > 0 ? goal : 0;
+    state.earningsSettings.dailyGoal = Number.isFinite(dailyGoal) && dailyGoal > 0 ? dailyGoal : 250;
+    saveState(); renderEarnings(); if ($('earningsGoalDialog').open) $('earningsGoalDialog').close(); showToast('Metas salvas.');
   }
 
   function scoreFor(payer) {
