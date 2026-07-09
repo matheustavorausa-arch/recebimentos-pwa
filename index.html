@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=51">
-  <link rel="stylesheet" href="css/betting-theme.css?v=51">
+  <link rel="stylesheet" href="css/styles.css?v=52">
+  <link rel="stylesheet" href="css/betting-theme.css?v=52">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -45,6 +45,18 @@
     <main class="home-main">
       <button id="openRentalsBtn" class="module-card" type="button" onclick="window.appNavigate && window.appNavigate('rentals'); return false;"><span>🏠</span><strong>Aluguéis</strong><small>Sistema atual de recebimentos</small></button>
       <button id="openEarningsBtn" class="module-card earnings" type="button" onclick="window.appNavigate && window.appNavigate('earnings'); return false;"><span>💰</span><strong>Ganhos</strong><small>Lançamentos, metas e relatórios</small></button>
+      <section class="backup-card home-backup-card" aria-label="Backup dos dados">
+        <div>
+          <strong>Backup e transferencia</strong>
+          <p>Leve todos os cadastros, pagamentos e ganhos para outro aparelho. <span id="backupStatus">Nenhum backup registrado.</span></p>
+        </div>
+        <div class="backup-actions">
+          <button id="exportBackupBtn" class="notification-button" type="button">Exportar</button>
+          <button id="exportCsvBtn" class="notification-button secondary-backup" type="button">CSV</button>
+          <button id="importBackupBtn" class="notification-button secondary-backup" type="button">Importar</button>
+          <input id="backupFileInput" type="file" accept="application/json,.json" hidden>
+        </div>
+      </section>
     </main>
   </section>
 
@@ -289,7 +301,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=51" defer></script>
-  <script src="js/app.js?v=51" defer></script>
+  <script src="js/payment-history-data.js?v=52" defer></script>
+  <script src="js/app.js?v=52" defer></script>
 </body>
 </html>
