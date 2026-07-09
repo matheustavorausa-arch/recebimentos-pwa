@@ -549,6 +549,47 @@
     const labels = ['Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
     return totals.map((value, index) => detailRow(labels[index], money(value)));
   }
+  function compareLabel(current, previous) {
+    const diff = current - previous;
+    if (Math.abs(diff) < 0.01) return `igual a semana anterior (${money(previous)})`;
+    return `${diff > 0 ? '+' : '-'}${money(Math.abs(diff))} vs semana anterior (${money(previous)})`;
+  }
+  function setEarningsPanel(panel = 'entries') {
+    document.querySelectorAll('[data-earnings-tab]').forEach(button => button.classList.toggle('active', button.dataset.earningsTab === panel));
+    document.querySelectorAll('[data-earnings-panel]').forEach(section => { section.hidden = section.dataset.earningsPanel !== panel; });
+  }
+  function renderEarningsStatistics(stats) {
+    const currentStart = startOfWeek();
+    const previousStart = new Date(currentStart); previousStart.setDate(currentStart.getDate() - 7);
+    const currentWork = earningsDailyTotals(currentStart, isWorkEarning);
+    const previousWork = earningsDailyTotals(previousStart, isWorkEarning);
+    const currentOther = earningsDailyTotals(currentStart, item => !isWorkEarning(item));
+    const previousOther = earningsDailyTotals(previousStart, item => !isWorkEarning(item));
+    const currentRentals = rentalDailyTotals(currentStart);
+    const previousRentals = rentalDailyTotals(previousStart);
+    const previousWorkTotal = previousWork.reduce((sum, value) => sum + value, 0);
+    const previousOtherTotal = previousOther.reduce((sum, value) => sum + value, 0);
+    const previousRentalTotal = previousRentals.reduce((sum, value) => sum + value, 0);
+    if ($('earningsStatsSummary')) $('earningsStatsSummary').innerHTML = [
+      ['Trabalho da semana', `${money(stats.workTotal)} - ${compareLabel(stats.workTotal, previousWorkTotal)}`],
+      ['Media diaria', `${money(stats.average)} em ${stats.dayCount} dia(s) uteis`],
+      ['Meta semanal', stats.goal ? `${money(stats.goal)} - ${stats.diff >= 0 ? money(stats.diff) + ' acima' : money(Math.abs(stats.diff)) + ' faltando'}` : 'Nao definida'],
+      ['Score', `${stats.workScore.label} (${stats.workScore.value}/100)`],
+      ['Outros / auxilios', `${money(stats.excludedTotal)} - ${compareLabel(stats.excludedTotal, previousOtherTotal)}`],
+      ['Alugueis visual', `${money(stats.rentalTotal)} - ${compareLabel(stats.rentalTotal, previousRentalTotal)}`],
+      ['Total geral registrado', money(stats.total + stats.rentalTotal)]
+    ].map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+    if ($('earningsStatsDaily')) $('earningsStatsDaily').innerHTML = currentWork.map((value, index) => {
+      const labels = ['Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
+      return detailRow(labels[index], `${money(value)} - ${compareLabel(value, previousWork[index] || 0)}`);
+    }).join('');
+    if ($('earningsStatsBreakdowns')) $('earningsStatsBreakdowns').innerHTML = [
+      detailRow('Por aplicativo', Object.entries(stats.appTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' - ') || 'Sem trabalho'),
+      detailRow('Por pessoa', Object.entries(stats.personTotals).map(([name,value]) => `${name}: ${money(value)}`).join(' - ') || 'Sem trabalho'),
+      detailRow('Outros por dia', currentOther.map((value,index) => ['Seg','Ter','Qua','Qui','Sex','Sab'][index] + ': ' + money(value)).join(' - ')),
+      detailRow('Alugueis por dia', currentRentals.map((value,index) => ['Seg','Ter','Qua','Qui','Sex','Sab'][index] + ': ' + money(value)).join(' - '))
+    ].join('');
+  }
   function miniTrendHtml(current, previous) {
     const max = Math.max(1, ...current, ...previous);
     const coords = values => values.map((value, index) => ({ x: 6 + (index * 17.6), y: 36 - ((value / max) * 20) }));
@@ -616,7 +657,8 @@
     $('earningsWeekLabel').textContent = `${formatShort(start)} a ${formatShort(end)}`;
     $('earningDate').value ||= localDate();
     $('earningsGoalInput').value = state.earningsSettings.weeklyGoal ? Number(state.earningsSettings.weeklyGoal).toFixed(2).replace('.', ',') : '';
-    const { records, total, workTotal, excludedTotal, workScore, excludedRecords, rentalTotal, goal, dayCount, average, diff, appTotals, personTotals } = earningsStats();
+    const stats = earningsStats();
+    const { records, total, workTotal, excludedTotal, workScore, excludedRecords, rentalTotal, goal, dayCount, average, diff, appTotals, personTotals } = stats;
     $('earningsWeekTotal').textContent = money(workTotal); $('earningsGoalValue').textContent = money(goal); $('earningsDailyAverage').textContent = money(average); $('earningsOtherTotal').textContent = money(excludedTotal); $('earningsRentalTotal').textContent = money(rentalTotal);
     $('earningsWorkScore').textContent = `${workScore.value}/100`;
     $('earningsWorkScoreLabel').textContent = `${workScore.label} - ${money(workTotal)} em trabalho`;
@@ -633,6 +675,7 @@
       ['Diferença para meta', goal ? (diff >= 0 ? `+${money(diff)}` : `-${money(Math.abs(diff))}`) : 'Não definida']
     ];
     $('earningsReports').innerHTML = reportRows.map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+    renderEarningsStatistics(stats);
     $('earningsCount').textContent = String((state.earnings || []).length);
     setTimeout(renderEarningsTrends, 0);
     const history = (state.earnings || []).slice().sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0,80);
@@ -1076,6 +1119,7 @@
     if (button.id === 'pendingSummaryBtn') openPendingDetails();
     if (button.id === 'waitingSummaryBtn') openWaitingDetails();
     if (button.id === 'receivedSummaryBtn') openReceivedDetails();
+    if (button.dataset.earningsTab) setEarningsPanel(button.dataset.earningsTab);
     if (button.dataset.earningsDetail) openEarningsDetail(button.dataset.earningsDetail);
     if (button.dataset.profile) openProfile(button.dataset.profile);
     if (button.dataset.edit) openPayer(button.dataset.edit);

@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=47">
-  <link rel="stylesheet" href="css/betting-theme.css?v=47">
+  <link rel="stylesheet" href="css/styles.css?v=48">
+  <link rel="stylesheet" href="css/betting-theme.css?v=48">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -156,7 +156,13 @@
         <button class="summary-card score-summary" type="button" data-earnings-detail="score"><span>Score semanal</span><strong id="earningsWorkScore">0/100</strong><small id="earningsWorkScoreLabel">Sem dados</small></button>
       </section>
 
-      <section class="earnings-card">
+      <nav class="earnings-tabs" aria-label="Abas de ganhos">
+        <button class="active" type="button" data-earnings-tab="entries">Lancamentos</button>
+        <button type="button" data-earnings-tab="stats">Estatisticas</button>
+        <button type="button" data-earnings-tab="history">Historico</button>
+      </nav>
+
+      <section class="earnings-card earnings-panel" data-earnings-panel="entries">
         <div class="section-heading"><h2>Novo lançamento</h2></div>
         <form id="earningForm" class="earning-form">
           <label>Data<input id="earningDate" type="date" required></label>
@@ -168,12 +174,17 @@
         </form>
       </section>
 
-      <section class="earnings-card">
+      <section class="earnings-card earnings-panel" data-earnings-panel="stats" hidden>
         <div class="section-heading"><h2>Relatórios</h2></div>
         <div id="earningsReports" class="report-grid"></div>
+        <div id="earningsStatsSummary" class="report-grid stats-grid"></div>
+        <div class="section-heading compact"><h2>Por dia</h2></div>
+        <div id="earningsStatsDaily" class="detail-list compact-list"></div>
+        <div class="section-heading compact"><h2>Quebras</h2></div>
+        <div id="earningsStatsBreakdowns" class="detail-list compact-list"></div>
       </section>
 
-      <section class="earnings-card">
+      <section class="earnings-card earnings-panel" data-earnings-panel="history" hidden>
         <div class="section-heading"><h2>Histórico</h2><span id="earningsCount" class="count"></span></div>
         <div id="earningsHistory" class="detail-list"></div>
       </section>
@@ -277,7 +288,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=47" defer></script>
-  <script src="js/app.js?v=47" defer></script>
+  <script src="js/payment-history-data.js?v=48" defer></script>
+  <script src="js/app.js?v=48" defer></script>
 </body>
 </html>

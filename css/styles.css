@@ -85,6 +85,12 @@ body.auth-mode,body.home-mode { display:grid; place-items:center; padding:18px; 
 .module-card { display:grid; gap:10px; min-height:180px; padding:22px; border:1px solid var(--line); border-radius:22px; color:var(--ink); background:#fff; text-align:left; box-shadow:var(--shadow); }
 .module-card span { font-size:2.4rem; }.module-card strong { font-size:1.35rem; }.module-card small { color:var(--muted); font-weight:700; }.module-card.earnings { border-color:#d7c687; background:#fff9dc; }
 .earnings-module main { display:grid; gap:14px; }.earnings-summary .summary-card { cursor:pointer; }
+.earnings-tabs { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:5px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.08); box-shadow:var(--shadow); }
+.earnings-tabs button { min-height:38px; border:0; border-radius:12px; color:var(--muted); background:transparent; font-size:.72rem; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+.earnings-tabs button.active { color:#07100c; background:var(--green); box-shadow:0 0 18px rgba(25,220,130,.18); }
+.section-heading.compact { margin-top:16px; }
+.compact-list .detail-item { padding:10px 0; }
+.stats-grid { margin-top:12px; }
 .earning-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }.earning-form .wide { grid-column:1/-1; }.earning-form button { grid-column:1/-1; padding:12px; border-radius:11px; font-weight:800; }
 .goal-form { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end; }
 .report-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }.report-item { padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--bg); }.report-item span { display:block; color:var(--muted); font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }.report-item strong { display:block; margin-top:4px; }
