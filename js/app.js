@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 15;
+  const DATA_VERSION = 16;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
   const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -454,6 +454,42 @@
     return changed;
   }
 
+  function normalizeDuplicateText(value) {
+    return String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  function dedupeEarnings() {
+    if (!Array.isArray(state.earnings)) return false;
+    const seen = new Map();
+    const result = [];
+    let changed = false;
+    state.earnings.forEach(item => {
+      const app = normalizeDuplicateText(item.app || 'Outros');
+      const person = normalizeDuplicateText(item.person || 'Matheus');
+      const date = item.date || '';
+      const amount = Number(item.amount || 0).toFixed(2);
+      const start = earningStartFromNotes(item);
+      const notes = normalizeDuplicateText(item.notes);
+      const category = item.category || (isSubsidyText(item) ? 'subsidy' : 'work');
+      const key = start
+        ? `${app}|${person}|${date}|start:${start}|${category}`
+        : `${app}|${person}|${date}|amount:${amount}|notes:${notes}|${category}`;
+      const existingIndex = seen.get(key);
+      if (existingIndex === undefined) {
+        seen.set(key, result.length);
+        result.push(item);
+        return;
+      }
+      const existing = result[existingIndex];
+      const existingImported = Boolean(existing.source || String(existing.id || '').includes('amazon-flex-'));
+      const currentImported = Boolean(item.source || String(item.id || '').includes('amazon-flex-'));
+      if (existingImported && !currentImported) result[existingIndex] = item;
+      changed = true;
+    });
+    if (changed) state.earnings = result;
+    return changed;
+  }
+
   function isSubsidyText(item) {
     const text = `${item.notes || ''} ${item.source || ''} ${item.kind || ''}`.toLowerCase();
     return /(subsidy|health|padsa|insurance|seguro|auxilio|auxÃ­lio|adicional|evento|event|bonus|bÃ´nus|promo|reembolso|refund)/i.test(text);
@@ -474,6 +510,7 @@
       if (!item.category) { item.category = isSubsidyText(item) ? 'subsidy' : 'work'; changed = true; }
       if (item.category === 'other') { item.category = 'subsidy'; changed = true; }
     });
+    if (dedupeEarnings()) changed = true;
 
     state.payers.forEach(payer => {
       if (!payer.clientCode) { const client = clientDefinitionForPayer(payer); if (client) { payer.clientCode = client.clientCode; changed = true; } }
