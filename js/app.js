@@ -551,17 +551,24 @@
   }
   function miniTrendHtml(current, previous) {
     const max = Math.max(1, ...current, ...previous);
-    const point = (value, index) => `${6 + (index * 17.6)},${42 - ((value / max) * 30)}`;
-    const currentPoints = current.map(point).join(' ');
-    const previousPoints = previous.map(point).join(' ');
+    const coords = values => values.map((value, index) => ({ x: 6 + (index * 17.6), y: 36 - ((value / max) * 20) }));
+    const stepPath = values => {
+      const points = coords(values);
+      if (!points.length) return '';
+      return points.slice(1).reduce((path, point, index) => {
+        const prev = points[index]; const mid = (prev.x + point.x) / 2;
+        return `${path} H ${mid.toFixed(1)} V ${point.y.toFixed(1)} H ${point.x.toFixed(1)}`;
+      }, `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`);
+    };
+    const currentCoords = coords(current);
     const totalCurrent = current.reduce((sum, value) => sum + value, 0);
     const totalPrevious = previous.reduce((sum, value) => sum + value, 0);
     const status = trendClass(totalCurrent, totalPrevious);
     const dots = current.map((value, index) => {
-      const [cx, cy] = point(value, index).split(',');
-      return `<circle class="trend-dot ${trendClass(value, previous[index] || 0)}" cx="${cx}" cy="${cy}" r="2.4"></circle>`;
+      const point = currentCoords[index];
+      return `<circle class="trend-dot ${trendClass(value, previous[index] || 0)}" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="1.55"></circle>`;
     }).join('');
-    return `<div class="mini-trend trend-${status}" aria-hidden="true"><svg viewBox="0 0 100 46" preserveAspectRatio="none"><polyline class="trend-previous" points="${previousPoints}"></polyline><polyline class="trend-current" points="${currentPoints}"></polyline>${dots}</svg></div>`;
+    return `<div class="mini-trend trend-${status}" aria-hidden="true"><svg viewBox="0 0 100 46" preserveAspectRatio="none"><path class="trend-previous" d="${stepPath(previous)}"></path><path class="trend-current" d="${stepPath(current)}"></path>${dots}</svg></div>`;
   }
   function setCardTrend(selector, current, previous) {
     const card = document.querySelector(selector);
