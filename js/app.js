@@ -729,6 +729,18 @@
   }
   function detailRow(label,value) { return `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div></article>`; }
   function earningsRecordRow(item) { return `<article class="detail-item"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.app)} · ${escapeHtml(item.person)}</strong><span>${dollars(item.amount)}${item.notes ? ` · ${escapeHtml(item.notes)}` : ''}</span></div></article>`; }
+  function flexStyleEarningRow(item) {
+    const isPayment = /payment sent/i.test(item.notes || '');
+    const icon = isPayment ? '🏦' : '📦';
+    const title = isPayment ? 'Payment sent' : formatFull(parseLocalDate(item.date));
+    const detail = isPayment ? formatFull(parseLocalDate(item.date)) : (item.notes || 'Paid');
+    const paidText = isPayment ? '' : '<small>Paid</small>';
+    return `<article class="flex-earning-row ${isPayment ? 'sent' : ''}"><div class="flex-icon">${icon}</div><div class="flex-info"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span>${paidText}</div><div class="flex-amount">${dollars(item.amount)}</div></article>`;
+  }
+  function renderFlexWeekDetail(workRecords, excludedRecords, workTotal, excludedTotal, total) {
+    const records = [...workRecords, ...excludedRecords].slice().sort((a,b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+    return `<div class="flex-week-shell"><div class="flex-week-summary"><span>Work</span><strong>${dollars(workTotal)}</strong><small>Other / auxilios: ${dollars(excludedTotal)} · Geral: ${dollars(total)}</small></div>${records.length ? records.map(flexStyleEarningRow).join('') : empty('Nenhum ganho registrado nesta semana.')}</div>`;
+  }
   function openEarningsGoal() {
     const { workTotal, excludedTotal, goal, dailyGoal, average, dayCount, diff } = earningsStats();
     $('earningsGoalInput').value = goal ? goal.toFixed(2).replace('.', ',') : '';
@@ -750,6 +762,12 @@
     if (type === 'score') $('earningsDetailTitle').textContent = 'Score semanal';
     if (type === 'other') $('earningsDetailTitle').textContent = 'Outros / auxilios';
     if (type === 'rentals') $('earningsDetailTitle').textContent = 'Alugueis da semana';
+    $('earningsDetailBody').classList.toggle('flex-week-detail', type === 'week');
+    if (type === 'week') {
+      $('earningsDetailBody').innerHTML = renderFlexWeekDetail(workRecords, excludedRecords, workTotal, excludedTotal, total);
+      $('earningsDetailDialog').showModal();
+      return;
+    }
     if (type === 'average') {
       $('earningsDetailTitle').textContent = 'Media diaria';
       const dailyWork = earningsDailyTotals(startOfWeek(), isWorkEarning);
