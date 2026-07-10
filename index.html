@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=57">
-  <link rel="stylesheet" href="css/betting-theme.css?v=57">
+  <link rel="stylesheet" href="css/styles.css?v=58">
+  <link rel="stylesheet" href="css/betting-theme.css?v=58">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -160,6 +160,7 @@
 
     <main>
       <section class="summary earnings-summary" aria-label="Resumo dos ganhos">
+        <button class="summary-card month-summary" type="button" data-earnings-detail="month"><span>Valor mensal</span><strong id="earningsMonthTotal">$0.00</strong><small id="earningsMonthBreakdown">Trabalho $0.00 - Outros $0.00</small></button>
         <button class="summary-card received" type="button" data-earnings-detail="week"><span>Total da semana</span><strong id="earningsWeekTotal">$0.00</strong><small>Toque para detalhar</small></button>
         <button class="summary-card expected" type="button" data-earnings-detail="goal"><span>Meta semanal</span><strong id="earningsGoalValue">$0.00</strong><small id="earningsGoalDiff">Defina uma meta</small></button>
         <button class="summary-card pending" type="button" data-earnings-detail="average"><span>Média diária</span><strong id="earningsDailyAverage">$0.00</strong><small>Toque para detalhar</small></button>
@@ -303,7 +304,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=57" defer></script>
-  <script src="js/app.js?v=57" defer></script>
+  <script src="js/payment-history-data.js?v=58" defer></script>
+  <script src="js/app.js?v=58" defer></script>
 </body>
 </html>

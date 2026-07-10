@@ -634,6 +634,21 @@
     const start = startOfWeek(now); const end = new Date(start); end.setDate(end.getDate() + 7); const startKey = localDate(start); const endKey = localDate(end);
     return (state.earnings || []).filter(item => item.date >= startKey && item.date < endKey).sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   }
+  function earningsThisMonth(now = new Date()) {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const startKey = localDate(start); const endKey = localDate(end);
+    return (state.earnings || []).filter(item => item.date >= startKey && item.date < endKey).sort((a,b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }
+  function earningsMonthStats(now = new Date()) {
+    const records = earningsThisMonth(now);
+    const workRecords = records.filter(isWorkEarning);
+    const excludedRecords = records.filter(item => !isWorkEarning(item));
+    const total = records.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const workTotal = workRecords.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const excludedTotal = excludedRecords.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    return { records, workRecords, excludedRecords, total, workTotal, excludedTotal, appTotals: groupedTotal(records,'app'), personTotals: groupedTotal(records,'person') };
+  }
   function isWorkEarning(item) {
     if (item?.category === 'subsidy') return false;
     if (item?.category === 'work') return true;
@@ -793,6 +808,7 @@
     setCardTrend('[data-earnings-detail="goal"]', currentWork, previousWork);
     setCardTrend('[data-earnings-detail="other"]', currentOther, previousOther);
     setCardTrend('[data-earnings-detail="rentals"]', currentRentals, previousRentals);
+    setCardTrend('[data-earnings-detail="month"]', currentWork.map((value, index) => value + currentOther[index]), previousWork.map((value, index) => value + previousOther[index]));
   }
   function yesterdayHasEarnings(now = new Date()) { const date = new Date(now); date.setDate(date.getDate() - 1); return (state.earnings || []).some(item => item.date === localDate(date)); }
   function todayHasEarnings(now = new Date()) { return (state.earnings || []).some(item => item.date === localDate(now)); }
@@ -822,6 +838,9 @@
     $('earningsDailyGoalInput').value = Number(state.earningsSettings.dailyGoal || 250).toFixed(2).replace('.', ',');
     const stats = earningsStats();
     const { records, total, workTotal, excludedTotal, workScore, excludedRecords, rentalTotal, goal, dayCount, average, diff, appTotals, personTotals } = stats;
+    const monthStats = earningsMonthStats();
+    if ($('earningsMonthTotal')) $('earningsMonthTotal').textContent = dollars(monthStats.total);
+    if ($('earningsMonthBreakdown')) $('earningsMonthBreakdown').textContent = `Trabalho ${dollars(monthStats.workTotal)} - Outros ${dollars(monthStats.excludedTotal)}`;
     $('earningsWeekTotal').textContent = dollars(workTotal); $('earningsGoalValue').textContent = dollars(goal); $('earningsDailyAverage').textContent = dollars(average); $('earningsOtherTotal').textContent = dollars(excludedTotal); $('earningsRentalTotal').textContent = dollars(rentalTotal);
     $('earningsWorkScore').textContent = `${workScore.value}/100`;
     $('earningsWorkScoreLabel').textContent = `${workScore.label} - ${dollars(workTotal)} em trabalho`;
@@ -886,7 +905,21 @@
     if (type === 'score') $('earningsDetailTitle').textContent = 'Score semanal';
     if (type === 'other') $('earningsDetailTitle').textContent = 'Outros / auxilios';
     if (type === 'rentals') $('earningsDetailTitle').textContent = 'Alugueis da semana';
+    if (type === 'month') $('earningsDetailTitle').textContent = 'Valor mensal';
     $('earningsDetailBody').classList.toggle('flex-week-detail', type === 'week');
+    if (type === 'month') {
+      const month = earningsMonthStats();
+      $('earningsDetailBody').innerHTML = [
+        detailRow('Total geral do mes', dollars(month.total)),
+        detailRow('Total de trabalho', dollars(month.workTotal)),
+        detailRow('Subsidios / outros', dollars(month.excludedTotal)),
+        detailRow('Por aplicativo', Object.entries(month.appTotals).map(([name,value]) => `${name}: ${dollars(value)}`).join(' - ') || 'Sem lancamentos'),
+        detailRow('Por pessoa', Object.entries(month.personTotals).map(([name,value]) => `${name}: ${dollars(value)}`).join(' - ') || 'Sem lancamentos'),
+        ...(month.records.length ? month.records.map(earningsRecordRow) : [empty('Nenhum ganho registrado neste mes.')])
+      ].join('');
+      $('earningsDetailDialog').showModal();
+      return;
+    }
     if (type === 'week') {
       $('earningsDetailBody').innerHTML = renderFlexWeekDetail(workRecords, excludedRecords, workTotal, excludedTotal, total);
       $('earningsDetailDialog').showModal();

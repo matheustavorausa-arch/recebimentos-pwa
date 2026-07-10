@@ -29,6 +29,9 @@ main { width:min(760px,100%); margin:auto; padding:18px 14px; }
 .trend-dot { vector-effect:non-scaling-stroke; stroke:rgba(255,255,255,.35); stroke-width:.45; opacity:.85; }
 .trend-dot.up { fill:var(--green); }.trend-dot.down { fill:var(--red); }.trend-dot.same { fill:var(--amber); }
 .summary-card.received strong { color:var(--green); }.summary-card.pending strong { color:var(--red); }
+.summary-card.month-summary { grid-column:1/-1; min-height:96px; padding:18px 16px; }
+.summary-card.month-summary strong { color:var(--green); font-size:1.45rem; letter-spacing:-.03em; }
+.summary-card.month-summary small { color:var(--muted); font-size:.7rem; }
 .summary-card.score-summary strong { color:var(--amber); }
 .summary-card.other-summary strong { color:var(--amber); }
 .summary-card.rental-summary strong { color:var(--green); }
@@ -72,7 +75,7 @@ main { width:min(760px,100%); margin:auto; padding:18px 14px; }
 .delay-label.grace { color:var(--amber); background:#fff4d8; }
 .toast { position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom)); z-index:20; max-width:calc(100% - 32px); padding:11px 16px; border-radius:999px; color:#fff; background:#18211e; box-shadow:var(--shadow); opacity:0; pointer-events:none; transform:translate(-50%,18px); transition:.2s; font-size:.82rem; }.toast.show { opacity:1; transform:translate(-50%,0); }
 @media (min-width:680px) { .topbar { padding-left:max(24px,calc((100% - 720px)/2)); padding-right:max(24px,calc((100% - 720px)/2)); }.summary-card { padding:17px; }.summary-card strong { font-size:1.15rem; } }
-@media (max-width:360px) { .summary-card { padding:12px 8px; }.summary-card strong { font-size:.86rem; }.status-options { grid-template-columns:1fr; } }
+@media (max-width:360px) { .summary-card { padding:12px 8px; }.summary-card strong { font-size:.86rem; }.summary-card.month-summary strong { font-size:1.18rem; }.status-options { grid-template-columns:1fr; } }
 
 .score-card.excellent { background:#16855c; }.score-card.great { background:#237264; }.score-card.good { background:#9b7517; }.score-card.bad { background:#bd5c25; }.score-card.critical { background:#8f2525; }
 
