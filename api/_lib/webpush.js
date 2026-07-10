@@ -18,6 +18,7 @@ function notificationFromSummary(summary = {}, kind = 'daily') {
     return {
       title: 'Ganhos das 21h',
       body: summary.gainsEveningBody || 'Não esqueça de adicionar os ganhos de hoje.',
+      body: 'Nao esqueca de adicionar os ganhos de hoje.',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
       tag: 'daily-earnings-evening',
@@ -27,12 +28,11 @@ function notificationFromSummary(summary = {}, kind = 'daily') {
   }
 
   const pendingCount = Number(summary.pendingCount || 0);
-  const title = pendingCount ? 'Recebimentos das 9h' : 'Recebimentos em dia';
+  const title = 'Recebimentos das 9h';
   const rentalBody = summary.body || (pendingCount
     ? `${pendingCount} pagamento${pendingCount === 1 ? '' : 's'} pendente${pendingCount === 1 ? '' : 's'}.`
-    : 'Nenhum pagamento pendente. Tudo em dia!');
-  const gainsBody = summary.gainsMorningBody ? ` ${summary.gainsMorningBody}` : '';
-  const body = `${rentalBody}${gainsBody}`;
+    : 'Hoje nao tem pagamento previsto.');
+  const body = rentalBody;
 
   return {
     title,

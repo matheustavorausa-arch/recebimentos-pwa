@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 16;
+  const DATA_VERSION = 17;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
   const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -214,8 +214,12 @@
       : pending.length
         ? `${pending.length} pagamento${pending.length === 1 ? '' : 's'} pendente${pending.length === 1 ? '' : 's'}: ${pendingNames.join(', ')}${pending.length > 3 ? '…' : ''}.`
         : 'Nenhum pagamento pendente. Tudo em dia!';
-    const gainsMorningBody = yesterdayHasEarnings(now) ? '' : 'Você ainda não registrou os ganhos de ontem.';
     const gainsEveningBody = todayHasEarnings(now) ? 'Ganhos de hoje já registrados. Se faltou algo, atualize antes de dormir.' : 'Não esqueça de adicionar os ganhos de hoje.';
+    const morningRentalBody = todayNames.length
+      ? `Hoje tem ${dueToday.length} pagamento${dueToday.length === 1 ? '' : 's'}: ${todayNames.join(', ')}${dueToday.length > 3 ? '...' : ''}.`
+      : pending.length
+        ? `${pending.length} pagamento${pending.length === 1 ? '' : 's'} pendente${pending.length === 1 ? '' : 's'}: ${pendingNames.join(', ')}${pending.length > 3 ? '...' : ''}.`
+        : 'Hoje nao tem pagamento previsto.';
     return {
       generatedAt: new Date().toISOString(),
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles',
@@ -223,9 +227,8 @@
       todayCount: dueToday.length,
       todayNames,
       pendingNames,
-      gainsMorningBody,
-      gainsEveningBody,
-      body
+      gainsEveningBody: 'Nao esqueca de adicionar os ganhos de hoje.',
+      body: morningRentalBody
     };
   }
   async function syncPushSnapshot() {
@@ -1231,7 +1234,7 @@
     button.disabled = false;
     const enabled = state.settings?.notifications && state.settings?.pushSubscribed && Notification.permission === 'granted';
     button.textContent = enabled ? 'Desativar' : 'Ativar'; button.classList.toggle('enabled', enabled);
-    $('notificationStatus').textContent = enabled ? `${pendingPayers().length} pendente(s) agora. Push ativo para avisar às 9h mesmo com o app fechado.` : 'Receba um aviso diário às 9h mesmo com o app fechado.';
+    $('notificationStatus').textContent = enabled ? `${pendingPayers().length} pendente(s) agora. Push ativo: 9h recebimentos e 21h ganhos.` : 'Receba avisos push: 9h recebimentos e 21h ganhos.';
   }
 
   function renderBackupStatus() { const value = state.settings?.lastBackupAt; $('backupStatus').textContent = value ? `Último backup: ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value))}.` : 'Nenhum backup registrado.'; }
@@ -1271,14 +1274,11 @@
   function toggleReceivedField() { const status = document.querySelector('[name="status"]:checked')?.value; $('receivedAmountLabel').hidden = status === 'unpaid'; $('paymentDateLabel').hidden = status === 'unpaid'; $('paymentTimeLabel').hidden = status === 'unpaid'; }
 
   async function sendDailyNotification() {
-    if (!state.settings?.notifications || Notification.permission !== 'granted') return;
-    const body = dailyPushSummary().body;
-    const registration = await navigator.serviceWorker.ready; await registration.showNotification('Recebimentos das 9h', { body, icon: './icons/icon-192.png', badge: './icons/icon-192.png', tag: 'daily-payments', renotify: true });
-    state.settings.lastNotificationDate = localDate(); saveState();
+    return syncPushSnapshot();
   }
 
-  function checkDailyNotification() { if (!state.settings?.notifications || Notification.permission !== 'granted') return; const now = new Date(); if (now.getHours() >= 9 && state.settings.lastNotificationDate !== localDate(now)) sendDailyNotification().catch(() => showToast('Não foi possível mostrar a notificação.')); }
-  function scheduleNotification() { clearTimeout(notificationTimer); if (!state.settings?.notifications || Notification.permission !== 'granted') return; checkDailyNotification(); const now = new Date(); const next = new Date(now); next.setHours(9, 0, 0, 0); if (next <= now) next.setDate(next.getDate() + 1); notificationTimer = setTimeout(() => { sendDailyNotification().finally(scheduleNotification); }, next - now); }
+  function checkDailyNotification() { queuePushSnapshotSync(); }
+  function scheduleNotification() { clearTimeout(notificationTimer); queuePushSnapshotSync(); }
   async function registerPushNotifications() {
     const config = await pushConfig();
     if (!config.enabled || !config.publicKey) {
