@@ -409,6 +409,9 @@ body.theme-light .theme-switch button.active {
   border-color:var(--line);
   background:#121a16;
 }
+.finance-module .finance-account-card {
+  border:0;
+}
 .finance-module .detail-item span,
 .finance-module .detail-item small,
 .finance-module .finance-account-card small,
@@ -458,6 +461,9 @@ body.theme-light .finance-module .finance-quick-actions button {
   color:#17211e;
   border-color:#eef0ef;
   background:#fff;
+}
+body.theme-light .finance-module .finance-account-card {
+  border:0;
 }
 body.theme-light .finance-bottom-nav.earnings-tabs.finance-tabs {
   background:rgba(244,246,245,.86);

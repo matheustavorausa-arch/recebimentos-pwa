@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=67">
-  <link rel="stylesheet" href="css/betting-theme.css?v=67">
+  <link rel="stylesheet" href="css/styles.css?v=68">
+  <link rel="stylesheet" href="css/betting-theme.css?v=68">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -227,14 +227,14 @@
     <main>
       <section class="finance-hero" aria-label="Resumo financeiro principal">
         <div class="finance-hero-head"><span>Guardado</span><strong id="financeHeroMonth">Mês</strong></div>
-        <strong id="financeHeroBalance" class="finance-hero-balance">$0.00</strong>
+        <button class="finance-hero-main" type="button" data-finance-detail="balance"><strong id="financeHeroBalance" class="finance-hero-balance">$0.00</strong></button>
         <div class="finance-hero-track"><i id="financeHeroBar"></i></div>
         <div class="finance-hero-totals">
-          <p><span>Entradas</span><strong id="financeHeroIncome">$0.00</strong></p>
-          <p><span>Saídas</span><strong id="financeHeroExpense">$0.00</strong></p>
+          <button type="button" data-finance-detail="income"><span>Entradas</span><strong id="financeHeroIncome">$0.00</strong></button>
+          <button type="button" data-finance-detail="expense"><span>Saídas</span><strong id="financeHeroExpense">$0.00</strong></button>
         </div>
-        <button type="button" data-finance-tab="transactions">Ver detalhes</button>
-        <small id="financeHeroPending">Pendentes separados</small>
+        <button class="finance-hero-details" type="button" data-finance-tab="transactions">Ver detalhes</button>
+        <button class="finance-hero-pending" type="button" data-finance-detail="pending" id="financeHeroPending">Pendentes separados</button>
       </section>
 
       <section class="finance-controls earnings-card" aria-label="Filtros financeiros">
@@ -249,11 +249,11 @@
       </section>
 
       <nav class="earnings-tabs finance-tabs finance-bottom-nav" aria-label="Abas de finanças">
-        <button type="button" data-finance-tab="cards" data-icon="💳">Contas</button>
-        <button class="active" type="button" data-finance-tab="overview" data-icon="🏠">Home</button>
-        <button type="button" data-finance-tab="analysis" data-icon="📊">Análise</button>
-        <button type="button" data-finance-tab="transactions" data-icon="⇄">Transações</button>
-        <button type="button" data-finance-tab="settings" data-icon="⚙️">Config</button>
+        <button type="button" data-finance-tab="cards"><svg class="finance-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 10h18M7 15h3"></path></svg><span>Contas</span></button>
+        <button class="active" type="button" data-finance-tab="overview"><svg class="finance-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5 10.5V20h14v-9.5"></path><path d="M9 20v-6h6v6"></path></svg><span>Home</span></button>
+        <button type="button" data-finance-tab="analysis"><svg class="finance-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"></path><path d="M8 19v-7"></path><path d="M13 19V8"></path><path d="M18 19v-4"></path><path d="M3 19h18"></path></svg><span>Análise</span></button>
+        <button type="button" data-finance-tab="transactions"><svg class="finance-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h13l-3-3"></path><path d="M17 17H4l3 3"></path><path d="m20 7-3 3"></path><path d="m4 17 3-3"></path></svg><span>Transações</span></button>
+        <button type="button" data-finance-tab="settings"><svg class="finance-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 2-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V20h-3v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2-2 .1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4v-3h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-2 .1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V4h3v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2 2-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1v3h-.1a1.7 1.7 0 0 0-1.5 1Z"></path></svg><span>Config</span></button>
       </nav>
 
       <section class="earnings-card finance-panel" data-finance-panel="overview">
@@ -335,6 +335,13 @@
       </section>
     </main>
   </section>
+
+  <dialog id="financeDetailDialog" class="dialog finance-detail-dialog">
+    <div class="dialog-body">
+      <div class="dialog-header"><div><p class="eyebrow">FINANÇAS</p><h2 id="financeDetailTitle">Detalhes</h2></div><button class="close-button" type="button" data-close="financeDetailDialog" aria-label="Fechar">×</button></div>
+      <div id="financeDetailBody" class="detail-list"></div>
+    </div>
+  </dialog>
 
   <dialog id="earningsDetailDialog" class="dialog">
     <div class="dialog-body">
@@ -434,7 +441,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=67" defer></script>
-  <script src="js/app.js?v=67" defer></script>
+  <script src="js/payment-history-data.js?v=68" defer></script>
+  <script src="js/app.js?v=68" defer></script>
 </body>
 </html>

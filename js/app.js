@@ -244,7 +244,7 @@
     records.forEach(item => {
       const account = financeAccountById(item.accountId);
       const kind = financeAccountKind(account);
-      byAccount[account.id] ||= { name:account.name, kind, purchases:0, credits:0, transfers:0, pending:0, count:0 };
+      byAccount[account.id] ||= { id:account.id, name:account.name, kind, purchases:0, credits:0, transfers:0, pending:0, count:0 };
       byAccount[account.id].count++;
       if (item.status === 'pending') byAccount[account.id].pending += Number(item.amount || 0);
       else if (isFinanceTransfer(item)) byAccount[account.id].transfers += Number(item.amount || 0);
@@ -257,13 +257,41 @@
       const group = cards.filter(card => card.kind === kind);
       if (!group.length) return '';
       const totals = group.reduce((acc, card) => ({ purchases:acc.purchases + card.purchases, credits:acc.credits + card.credits, transfers:acc.transfers + card.transfers, pending:acc.pending + card.pending, count:acc.count + card.count }), { purchases:0, credits:0, transfers:0, pending:0, count:0 });
-      const items = group.map(card => `<article class="finance-account-card"><div><span>${financeAccountKindLabel(card.kind).slice(0,-1)}</span><strong>${escapeHtml(card.name)}</strong></div><div class="finance-account-numbers"><p><span>Entradas reais</span><strong>${dollars(card.credits)}</strong></p><p><span>Saídas reais</span><strong>${dollars(card.purchases)}</strong></p><p><span>Transferências</span><strong>${dollars(card.transfers)}</strong></p><p><span>Pendentes</span><strong>${dollars(card.pending)}</strong></p></div><small>${card.count} transação${card.count === 1 ? '' : 'ões'} no filtro atual</small></article>`).join('');
+      const items = group.map(card => `<button class="finance-account-card" type="button" data-finance-account="${escapeHtml(card.id || card.name)}"><div><span>${financeAccountKindLabel(card.kind).slice(0,-1)}</span><strong>${escapeHtml(card.name)}</strong></div><div class="finance-account-numbers"><p><span>Entradas reais</span><strong>${dollars(card.credits)}</strong></p><p><span>Saídas reais</span><strong>${dollars(card.purchases)}</strong></p><p><span>Transferências</span><strong>${dollars(card.transfers)}</strong></p><p><span>Pendentes</span><strong>${dollars(card.pending)}</strong></p></div><small>${card.count} transação${card.count === 1 ? '' : 'ões'} no filtro atual · toque para detalhes</small></button>`).join('');
       return `<section class="finance-account-zone"><div class="finance-zone-head"><div><span>Zona</span><strong>${financeAccountKindLabel(kind)}</strong></div><small>${totals.count} transações · saídas ${dollars(totals.purchases)} · transferências ${dollars(totals.transfers)}</small></div>${items}</section>`;
     }).join('');
   }
   function renderFinanceSettings() {
     if ($('financeCategoriesList')) $('financeCategoriesList').innerHTML = (state.finance?.categories || []).map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`).join('') || empty('Nenhuma categoria.');
     if ($('financeAccountsList')) $('financeAccountsList').innerHTML = (state.finance?.accounts || []).map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`).join('') || empty('Nenhuma conta/cartão.');
+  }
+  function financeDetailRows(records, limit = 16) {
+    return records.slice(0, limit).map(financeTransactionRow).join('') || empty('Nenhuma transação neste detalhe.');
+  }
+  function openFinanceMetricDetail(kind) {
+    const stats = financeStats();
+    const titles = { balance:'Saldo do período', income:'Entradas reais', expense:'Saídas reais', pending:'Pendentes' };
+    let records = stats.records;
+    let summary = '';
+    if (kind === 'income') records = records.filter(item => item.type === 'income' && item.subtype !== 'transfer');
+    if (kind === 'expense') records = records.filter(item => item.type === 'expense' && item.subtype !== 'transfer');
+    if (kind === 'pending') records = stats.pending;
+    const total = kind === 'income' ? stats.income : kind === 'expense' ? stats.expense : kind === 'pending' ? stats.pendingIncome - stats.pendingExpense : stats.income - stats.expense;
+    summary = `<article class="finance-detail-hero"><span>${titles[kind] || 'Detalhes'}</span><strong>${dollars(total)}</strong><small>Transferências ficam separadas dos totais principais para não bagunçar o saldo.</small></article>`;
+    $('financeDetailTitle').textContent = titles[kind] || 'Detalhes';
+    $('financeDetailBody').innerHTML = summary + financeDetailRows(records);
+    $('financeDetailDialog').showModal();
+  }
+  function openFinanceAccountDetail(accountId) {
+    const account = financeAccountById(accountId);
+    const records = financeFilteredTransactions(true).filter(item => item.accountId === accountId);
+    const realIncome = records.filter(item => item.status === 'posted' && item.type === 'income' && item.subtype !== 'transfer').reduce((sum,item) => sum + Number(item.amount || 0), 0);
+    const realExpense = records.filter(item => item.status === 'posted' && item.type === 'expense' && item.subtype !== 'transfer').reduce((sum,item) => sum + Number(item.amount || 0), 0);
+    const transfers = records.filter(item => item.status === 'posted' && item.subtype === 'transfer').reduce((sum,item) => sum + Number(item.amount || 0), 0);
+    const kind = financeAccountKind(account);
+    $('financeDetailTitle').textContent = account.name || 'Conta/cartão';
+    $('financeDetailBody').innerHTML = `<article class="finance-card-preview finance-card-${kind}"><span>${financeAccountKindLabel(kind)}</span><strong>${escapeHtml(account.name || 'Conta')}</strong><small>${records.length} transações no filtro atual</small></article><div class="report-grid finance-overview-grid"><div class="report-item"><span>Entradas reais</span><strong>${dollars(realIncome)}</strong></div><div class="report-item"><span>Saídas reais</span><strong>${dollars(realExpense)}</strong></div><div class="report-item"><span>Transferências</span><strong>${dollars(transfers)}</strong></div><div class="report-item"><span>Saldo real</span><strong>${dollars(realIncome - realExpense)}</strong></div></div>${financeDetailRows(records, 24)}`;
+    $('financeDetailDialog').showModal();
   }
   function renderFinance() {
     ensureFinanceState(); populateFinanceSelects();
@@ -2044,6 +2072,8 @@
     if (button.dataset.earningsTab) setEarningsPanel(button.dataset.earningsTab);
     if (button.dataset.earningsDetail) openEarningsDetail(button.dataset.earningsDetail);
     if (button.dataset.financeTab) setFinancePanel(button.dataset.financeTab);
+    if (button.dataset.financeDetail) openFinanceMetricDetail(button.dataset.financeDetail);
+    if (button.dataset.financeAccount) openFinanceAccountDetail(button.dataset.financeAccount);
     if (button.dataset.profile) openProfile(button.dataset.profile);
     if (button.dataset.edit) openPayer(button.dataset.edit);
     if (button.dataset.payment) { if ($('pendingDialog').open) $('pendingDialog').close(); if ($('waitingDialog').open) $('waitingDialog').close(); if ($('receivedDialog').open) $('receivedDialog').close(); if ($('profileDialog').open) $('profileDialog').close(); openPayment(button.dataset.payment, button.dataset.week); }
