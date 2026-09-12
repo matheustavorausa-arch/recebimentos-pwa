@@ -197,20 +197,24 @@
     const text = `${account.name || ''} ${account.id || ''}`.toLowerCase();
     const last4Match = `${account.name || ''}`.match(/(?:card\s*)?(\d{4})(?!.*\d{4})/i);
     const accountMatch = `${account.name || ''}`.match(/(?:checking|banking|chk|ckg|conta|adv plus banking)[^\d]*(\d{4})/i);
-    const last4 = last4Match?.[1] || '----';
-    const bank = /bofa|bank of america|travel rewards|unlimited cash|adv plus|ckg|chk|checking/i.test(account.name || '') ? 'Bank of America' : 'Banco não definido';
-    const network = /visa|travel rewards|unlimited cash|card/i.test(account.name || '') ? 'Visa' : '';
-    const isCredit = /(visa|credit|rewards|signature|crd|cart[aã]o de cr[eé]dito|credit card)/i.test(text) && !/(checking|banking|chk|ckg|debit|d[eé]bito)/i.test(text);
-    const isDebit = /(checking|banking|chk|ckg|debit|d[eé]bito|conta)/i.test(text);
+    const last4 = account.last4 || last4Match?.[1] || '----';
+    const explicitKind = account.kind || '';
+    const networkValue = (account.network || '').toLowerCase();
+    const bank = account.bank || (/bofa|bank of america|travel rewards|unlimited cash|adv plus|ckg|chk|checking/i.test(account.name || '') ? 'Bank of America' : 'Banco não definido');
+    const network = networkValue || (/mastercard|master card/i.test(text) ? 'mastercard' : /amex|american express/i.test(text) ? 'amex' : /discover/i.test(text) ? 'discover' : /visa|travel rewards|unlimited cash|card/i.test(text) ? 'visa' : '');
+    const isCredit = explicitKind === 'credit' || (/(visa|mastercard|master card|amex|discover|credit|rewards|signature|crd|cart[aã]o de cr[eé]dito|credit card)/i.test(text) && !/(checking|banking|chk|ckg|debit|d[eé]bito)/i.test(text));
+    const isDebit = explicitKind === 'checking' || /(checking|banking|chk|ckg|debit|d[eé]bito|conta)/i.test(text);
     const product = /travel rewards/i.test(text) ? 'Travel Rewards' : /unlimited cash/i.test(text) ? 'Unlimited Cash' : /adv plus/i.test(text) ? 'Adv Plus Banking' : isCredit ? 'Cartão de crédito' : isDebit ? 'Conta checking' : 'Conta';
-    return { bank, network, last4, accountLast4:accountMatch?.[1] || (/checking|banking|chk|ckg/i.test(text) ? last4 : ''), product, paymentType:isCredit ? 'Crédito' : isDebit ? 'Débito' : 'Conta' };
+    return { bank, network, networkLabel:financeNetworkLabel(network), last4, accountLast4:account.accountLast4 || accountMatch?.[1] || (/checking|banking|chk|ckg/i.test(text) || explicitKind === 'checking' ? last4 : ''), product, paymentType:isCredit ? 'Crédito' : isDebit ? 'Débito / checking' : 'Conta' };
   }
   function financeAccountKind(account = {}) {
     const text = `${account.name || ''} ${account.id || ''}`.toLowerCase();
+    if (account.kind === 'checking' || account.kind === 'credit' || account.kind === 'other') return account.kind;
     if (/(checking|banking|chk|ckg|debit|d[eé]bito|conta)/i.test(text)) return 'checking';
     if (/(visa|credit|rewards|signature|crd|cart[aã]o de cr[eé]dito|credit card)/i.test(text)) return 'credit';
     return 'other';
   }
+  function financeNetworkLabel(value) { return { visa:'VISA', mastercard:'Mastercard', amex:'AMEX', discover:'Discover', other:'CARD' }[String(value || '').toLowerCase()] || ''; }
   function financeAccountKindLabel(kind) { return { credit:'Cartões de crédito', checking:'Contas checking', other:'Outras contas' }[kind] || 'Outras contas'; }
   function isFinanceTransfer(item) { return item.subtype === 'transfer'; }
   function financeTransactionTone(item) {
@@ -336,6 +340,10 @@
   function renderFinanceCards(records) {
     if (!$('financeCardsList')) return;
     const byAccount = {};
+    (state.finance?.accounts || []).filter(account => !account.archived).forEach(account => {
+      const kind = financeAccountKind(account);
+      byAccount[account.id] ||= { id:account.id, name:account.name, kind, purchases:0, credits:0, transfers:0, pending:0, count:0 };
+    });
     records.forEach(item => {
       const account = financeAccountById(item.accountId);
       const kind = financeAccountKind(account);
@@ -351,15 +359,15 @@
       const meta = financeAccountMeta({ id:card.id, name:card.name });
       const balance = card.credits - card.purchases;
       const lastLine = mode === 'credit'
-        ? `${meta.bank}${meta.network ? ` · ${meta.network}` : ''} · final ${meta.last4}`
+        ? `${meta.bank}${meta.networkLabel ? ` · ${meta.networkLabel}` : ''} · final ${meta.last4}`
         : `${meta.bank}${meta.accountLast4 ? ` · conta ${meta.accountLast4}` : ''}${meta.last4 !== meta.accountLast4 ? ` · cartão ${meta.last4}` : ''}`;
       const numbers = mode === 'credit'
         ? `<p><span>Compras reais</span><strong>${dollars(card.purchases)}</strong></p><p><span>Créditos</span><strong>${dollars(card.credits)}</strong></p><p><span>Pagamentos fatura</span><strong>${dollars(card.transfers)}</strong></p><p><span>Pendentes</span><strong>${dollars(card.pending)}</strong></p>`
         : `<p><span>Entradas reais</span><strong>${dollars(card.credits)}</strong></p><p><span>Saídas reais</span><strong>${dollars(card.purchases)}</strong></p><p><span>Pgto./transfer.</span><strong>${dollars(card.transfers)}</strong></p><p><span>Saldo operação</span><strong>${dollars(balance)}</strong></p>`;
       return `<button class="finance-account-card finance-plastic-wrap" type="button" data-finance-account="${escapeHtml(card.id || card.name)}">
-        <article class="finance-plastic-card finance-plastic-${mode}">
+        <article class="finance-plastic-card finance-plastic-${mode} finance-network-${escapeHtml(meta.network || 'none')}" data-network="${escapeHtml(meta.networkLabel)}">
           <div class="finance-plastic-top"><span>${escapeHtml(meta.product)}</span><b>${escapeHtml(meta.paymentType)}</b></div>
-          <strong>Cartão ${escapeHtml(meta.last4)}</strong>
+          <strong>${mode === 'credit' ? 'Cartão' : 'Conta'} ${escapeHtml(meta.last4)}</strong>
           <small>${escapeHtml(lastLine)}</small>
         </article>
         <div class="finance-account-numbers">${numbers}</div>
@@ -397,7 +405,10 @@
   }
   function renderFinanceSettings() {
     if ($('financeCategoriesList')) $('financeCategoriesList').innerHTML = (state.finance?.categories || []).map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`).join('') || empty('Nenhuma categoria.');
-    if ($('financeAccountsList')) $('financeAccountsList').innerHTML = (state.finance?.accounts || []).map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`).join('') || empty('Nenhuma conta/cartão.');
+    if ($('financeAccountsList')) $('financeAccountsList').innerHTML = (state.finance?.accounts || []).map(item => {
+      const meta = financeAccountMeta(item);
+      return `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(meta.paymentType)} · ${escapeHtml(meta.bank)}${meta.last4 !== '----' ? ` · final ${escapeHtml(meta.last4)}` : ''}${meta.networkLabel ? ` · ${escapeHtml(meta.networkLabel)}` : ''} · ${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`;
+    }).join('') || empty('Nenhuma conta/cartão.');
   }
   function financeDetailRows(records, limit = 16) {
     return records.slice(0, limit).map(financeTransactionRow).join('') || empty('Nenhuma transação neste detalhe.');
@@ -425,7 +436,7 @@
     const kind = financeAccountKind(account);
     const meta = financeAccountMeta(account);
     $('financeDetailTitle').textContent = account.name || 'Conta/cartão';
-    $('financeDetailBody').innerHTML = `<article class="finance-card-preview finance-card-${kind}"><div class="finance-plastic-top"><span>${escapeHtml(meta.product)}</span><b>${escapeHtml(meta.paymentType)}</b></div><strong>Cartão ${escapeHtml(meta.last4)}</strong><small>${escapeHtml(meta.bank)}${meta.network ? ` · ${escapeHtml(meta.network)}` : ''} · ${records.length} transações no filtro atual</small></article><div class="report-grid finance-overview-grid"><div class="report-item"><span>Entradas reais</span><strong>${dollars(realIncome)}</strong></div><div class="report-item"><span>Saídas reais</span><strong>${dollars(realExpense)}</strong></div><div class="report-item"><span>Transferências / fatura</span><strong>${dollars(transfers)}</strong></div><div class="report-item"><span>Saldo sem duplicar</span><strong>${dollars(realIncome - realExpense)}</strong></div></div>${financeDetailRows(records, 24)}`;
+    $('financeDetailBody').innerHTML = `<article class="finance-card-preview finance-card-${kind}" data-network="${escapeHtml(meta.networkLabel)}"><div class="finance-plastic-top"><span>${escapeHtml(meta.product)}</span><b>${escapeHtml(meta.paymentType)}</b></div><strong>${kind === 'credit' ? 'Cartão' : 'Conta'} ${escapeHtml(meta.last4)}</strong><small>${escapeHtml(meta.bank)}${meta.networkLabel ? ` · ${escapeHtml(meta.networkLabel)}` : ''} · ${records.length} transações no filtro atual</small></article><div class="report-grid finance-overview-grid"><div class="report-item"><span>Entradas reais</span><strong>${dollars(realIncome)}</strong></div><div class="report-item"><span>Saídas reais</span><strong>${dollars(realExpense)}</strong></div><div class="report-item"><span>Transferências / fatura</span><strong>${dollars(transfers)}</strong></div><div class="report-item"><span>Saldo sem duplicar</span><strong>${dollars(realIncome - realExpense)}</strong></div></div>${financeDetailRows(records, 24)}`;
     $('financeDetailDialog').showModal();
   }
   function renderFinance() {
@@ -518,8 +529,22 @@
   }
   function saveFinanceAccount(event) {
     event.preventDefault(); const name = $('financeAccountName').value.trim(); if (!name) return; ensureFinanceState();
-    const id = slugify(name); if (!state.finance.accounts.some(item => item.id === id)) state.finance.accounts.push({ id, name, archived:false, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() });
-    $('financeAccountName').value = ''; saveState(); renderFinance(); showToast('Conta/cartão adicionado.');
+    const kind = $('financeAccountKindInput')?.value || 'checking';
+    const bank = $('financeAccountBank')?.value.trim() || '';
+    const last4 = ($('financeAccountLast4')?.value || '').replace(/\D/g, '').slice(-4);
+    const network = $('financeAccountNetwork')?.value || '';
+    const id = slugify(`${name}-${last4 || kind}`);
+    const now = new Date().toISOString();
+    const payload = { id, name, kind, bank, last4, network, archived:false, updatedAt:now };
+    const existing = state.finance.accounts.find(item => item.id === id);
+    if (existing) Object.assign(existing, payload);
+    else state.finance.accounts.push({ ...payload, createdAt:now });
+    $('financeAccountName').value = '';
+    if ($('financeAccountKindInput')) $('financeAccountKindInput').value = 'checking';
+    if ($('financeAccountBank')) $('financeAccountBank').value = '';
+    if ($('financeAccountLast4')) $('financeAccountLast4').value = '';
+    if ($('financeAccountNetwork')) $('financeAccountNetwork').value = '';
+    saveState(); renderFinance(); setFinancePanel(kind === 'credit' ? 'cards' : 'accounts'); showToast(kind === 'credit' ? 'Cartão adicionado.' : 'Conta checking adicionada.');
   }
   function createFinanceImportBatch(source = 'codex', notes = '') { ensureFinanceState(); const batch = { id:`batch-${uid()}`, source, notes, createdAt:new Date().toISOString() }; state.finance.importBatches.push(batch); return batch; }
   function importFinanceTransactions(records = [], options = {}) {

@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=72">
-  <link rel="stylesheet" href="css/betting-theme.css?v=72">
+  <link rel="stylesheet" href="css/styles.css?v=73">
+  <link rel="stylesheet" href="css/betting-theme.css?v=73">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -320,8 +320,23 @@
         </form>
         <div class="section-heading compact"><h2>Contas / cartões</h2></div>
         <div id="financeAccountsList" class="detail-list"></div>
-        <form id="financeAccountForm" class="finance-mini-form">
-          <input id="financeAccountName" placeholder="Nova conta ou cartão">
+        <form id="financeAccountForm" class="finance-mini-form finance-account-form">
+          <input id="financeAccountName" placeholder="Nome: ex. BofA Checking, Apple Card">
+          <select id="financeAccountKindInput" aria-label="Tipo da conta">
+            <option value="checking">Conta checking / corrente</option>
+            <option value="credit">Cartão de crédito</option>
+            <option value="other">Outra conta</option>
+          </select>
+          <input id="financeAccountBank" placeholder="Banco: ex. Bank of America">
+          <input id="financeAccountLast4" inputmode="numeric" maxlength="4" placeholder="Últimos 4 dígitos">
+          <select id="financeAccountNetwork" aria-label="Bandeira">
+            <option value="">Sem bandeira</option>
+            <option value="visa">Visa</option>
+            <option value="mastercard">Mastercard</option>
+            <option value="amex">Amex</option>
+            <option value="discover">Discover</option>
+            <option value="other">Outra</option>
+          </select>
           <button class="primary" type="submit">Adicionar</button>
         </form>
       </section>
@@ -451,7 +466,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=72" defer></script>
-  <script src="js/app.js?v=72" defer></script>
+  <script src="js/payment-history-data.js?v=73" defer></script>
+  <script src="js/app.js?v=73" defer></script>
 </body>
 </html>
