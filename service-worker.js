@@ -1,5 +1,5 @@
-const CACHE = 'recebimentos-v70';
-const ASSETS = ['./','./index.html','./css/styles.css?v=70','./css/betting-theme.css?v=70','./js/payment-history-data.js?v=70','./js/app.js?v=70','./manifest.webmanifest','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png'];
+const CACHE = 'recebimentos-v71';
+const ASSETS = ['./','./index.html','./css/styles.css?v=71','./css/betting-theme.css?v=71','./js/payment-history-data.js?v=71','./js/app.js?v=71','./manifest.webmanifest','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch', event => {

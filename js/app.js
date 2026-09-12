@@ -2,10 +2,10 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 23;
+  const DATA_VERSION = 24;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
-  const FINANCE_DEFAULT_CATEGORIES = ['Gasolina','Mercado','Restaurante','Aluguel / Moradia','Contas','Compras','Transporte','Automóvel','Lazer','Saúde','Pets','Criança / Família','Assinaturas','Outros'];
+  const FINANCE_DEFAULT_CATEGORIES = ['Gasolina','Mercado','Restaurante','Aluguel / Moradia','Contas','Compras','Transporte','Automóvel','Lazer','Saúde','Pets','Seguro pet','Seguro auto','Pedágios','Estacionamento','Parcelamentos / Financiamentos','Criança / Família','Assinaturas','Outros'];
   const FINANCE_DEFAULT_ACCOUNTS = ['Checking','Savings','Credit Card 1','Credit Card 2'];
   const FINANCE_RESPONSIBLES = { user1:'Usuário 1', user2:'Usuário 2', shared:'Compartilhado' };
   const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -145,7 +145,8 @@
     const defaults = defaultFinanceState();
     if (!state.finance || typeof state.finance !== 'object') { state.finance = defaults; return true; }
     ['transactions','categories','accounts','importBatches'].forEach(key => { if (!Array.isArray(state.finance[key])) { state.finance[key] = defaults[key]; changed = true; } });
-    state.finance.settings = { ...defaults.settings, ...(state.finance.settings || {}) };
+    state.finance.settings = { ...defaults.settings, merchantRules:{}, ...(state.finance.settings || {}) };
+    state.finance.settings.merchantRules ||= {};
     const addMissing = (key, items) => {
       const current = new Set((state.finance[key] || []).map(item => item.id));
       items.forEach(item => { if (!current.has(item.id)) { state.finance[key].push(item); changed = true; } });
@@ -170,6 +171,28 @@
   function financeResponsibleLabel(value) { return state.finance?.settings?.[`${value}Label`] || FINANCE_RESPONSIBLES[value] || value || 'Todos'; }
   function financeCategoryById(id) { return (state.finance?.categories || []).find(item => item.id === id) || { id, name:'Outros' }; }
   function financeAccountById(id) { return (state.finance?.accounts || []).find(item => item.id === id) || { id, name:'Sem conta' }; }
+  function financeMerchantKey(value = '') {
+    const cleaned = String(value || '').toLowerCase()
+      .replace(/conf#?\s*[a-z0-9]+/g, '')
+      .replace(/\b\d{1,2}\/\d{1,2}\b/g, '')
+      .replace(/\b\d{3}[- ]?\d{3}[- ]?\d{4}\b/g, '')
+      .replace(/[#*]/g, ' ')
+      .replace(/\b(id|indn|co|des|purchase|mobile|payment|payme|from|to|on|ca|wa|il|dc|web|ppd|ccd)\b/g, ' ')
+      .replace(/\b[a-z0-9]{8,}\b/g, ' ')
+      .replace(/\d+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return cleaned.split(' ').slice(0, 4).join(' ');
+  }
+  function financeRememberMerchantCategory(description, categoryId) {
+    const key = financeMerchantKey(description);
+    if (!key || !categoryId) return false;
+    state.finance.settings ||= {};
+    state.finance.settings.merchantRules ||= {};
+    if (state.finance.settings.merchantRules[key] === categoryId) return false;
+    state.finance.settings.merchantRules[key] = categoryId;
+    return true;
+  }
   function financeAccountMeta(account = {}) {
     const text = `${account.name || ''} ${account.id || ''}`.toLowerCase();
     const last4Match = `${account.name || ''}`.match(/(?:card\s*)?(\d{4})(?!.*\d{4})/i);
@@ -413,6 +436,7 @@
     const id = $('financeTransactionId').value; const now = new Date().toISOString();
     const payload = { date:$('financeDate').value || localDate(), description:$('financeDescription').value.trim(), merchant:$('financeDescription').value.trim(), amount, type:$('financeType').value, responsible:$('financeResponsible').value, categoryId:$('financeCategory').value, accountId:$('financeAccount').value, status:$('financeStatus').value, subtype:$('financeSubtype').value || 'regular', notes:$('financeNotes').value.trim(), updatedAt:now };
     if (!payload.description) { showToast('Informe a descrição.'); return; }
+    financeRememberMerchantCategory(payload.description, payload.categoryId);
     if (id) { const existing = state.finance.transactions.find(item => item.id === id); if (!existing) { showToast('Transação não encontrada.'); return; } Object.assign(existing, payload); }
     else state.finance.transactions.push({ ...payload, id:uid(), createdAt:now, importBatchId:'manual' });
     resetFinanceForm(); saveState(); renderFinance(); setFinancePanel('transactions'); showToast(id ? 'Transação atualizada.' : 'Transação salva.');
@@ -439,7 +463,10 @@
     const batch = createFinanceImportBatch(options.source || 'codex-screenshot', options.notes || '');
     records.forEach(record => {
       const now = new Date().toISOString();
-      state.finance.transactions.push({ id:record.id || uid(), date:record.date || localDate(), description:record.description || record.merchant || 'Importado', merchant:record.merchant || record.description || 'Importado', amount:Math.abs(Number(record.amount) || 0), type:['income','expense'].includes(record.type) ? record.type : 'expense', responsible:['user1','user2','shared'].includes(record.responsible) ? record.responsible : 'user1', categoryId:record.categoryId || state.finance.categories.find(item => item.name === record.category)?.id || 'outros', accountId:record.accountId || state.finance.accounts.find(item => item.name === record.account)?.id || state.finance.accounts[0]?.id || 'checking', status:['pending','posted'].includes(record.status) ? record.status : 'posted', subtype:record.subtype || 'regular', notes:record.notes || '', importBatchId:batch.id, externalFingerprint:record.externalFingerprint || '', createdAt:now, updatedAt:now });
+      const description = record.description || record.merchant || 'Importado';
+      const learnedCategory = state.finance.settings?.merchantRules?.[financeMerchantKey(description)];
+      const categoryId = record.categoryId || learnedCategory || state.finance.categories.find(item => item.name === record.category)?.id || 'outros';
+      state.finance.transactions.push({ id:record.id || uid(), date:record.date || localDate(), description, merchant:record.merchant || description, amount:Math.abs(Number(record.amount) || 0), type:['income','expense'].includes(record.type) ? record.type : 'expense', responsible:['user1','user2','shared'].includes(record.responsible) ? record.responsible : 'user1', categoryId, accountId:record.accountId || state.finance.accounts.find(item => item.name === record.account)?.id || state.finance.accounts[0]?.id || 'checking', status:['pending','posted'].includes(record.status) ? record.status : 'posted', subtype:record.subtype || 'regular', notes:record.notes || '', importBatchId:batch.id, externalFingerprint:record.externalFingerprint || '', createdAt:now, updatedAt:now });
     });
     return batch;
   }
@@ -462,7 +489,29 @@
       transfer: category('Transferência entre contas'),
       cardPayment: category('Pagamento / Crédito'),
       zelleOut: category('Zelle enviado'),
-      cashback: category('Cashback / Recompensa')
+      cashback: category('Cashback / Recompensa'),
+      gas: category('Gasolina'),
+      market: category('Mercado'),
+      restaurant: category('Restaurante'),
+      rent: category('Aluguel / Moradia'),
+      bills: category('Contas'),
+      utilities: category('Contas de luz / água'),
+      mobile: category('Celular / Internet'),
+      shopping: category('Compras'),
+      installments: category('Parcelamentos / Financiamentos'),
+      transport: category('Transporte'),
+      tolls: category('Pedágios'),
+      parking: category('Estacionamento'),
+      auto: category('Automóvel'),
+      autoInsurance: category('Seguro auto'),
+      autoLoan: category('Financiamento auto'),
+      petInsurance: category('Seguro pet'),
+      health: category('Saúde'),
+      subscriptions: category('Assinaturas'),
+      games: category('Jogos / Lazer'),
+      bankFee: category('Taxas bancárias'),
+      atm: category('Saque ATM'),
+      reimbursement: category('Reembolso / Outros recebimentos')
     };
     let changed = false;
     (state.finance.transactions || []).forEach(item => {
@@ -479,7 +528,51 @@
         assign({ subtype:'transfer', categoryId:/crd|payment from chk|payment to crd/.test(text) ? cat.cardPayment : cat.transfer });
       } else if (/cashreward/.test(text)) {
         assign({ type:'income', subtype:'cashback', categoryId:cat.cashback });
+      } else if (/spot\s*pet|spotpet\.com/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.petInsurance });
+      } else if (/geico/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.autoInsurance });
+      } else if (/lendbuzz/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.autoLoan });
+      } else if (/fastrak|toll roads?|express lanes?/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.tolls });
+      } else if (/spothero|impark|parking|golden gate nra parking/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.parking });
+      } else if (/clipper transit|waymo/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.transport });
+      } else if (/so cal edison|southern california edison/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.utilities });
+      } else if (/tmobile|t-mobile|at&t/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.mobile });
+      } else if (/apple\.com\/bill|apple com bill|doordashdashpass|dashpass/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.subscriptions });
+      } else if (/dd \*doordash|doordash\.com/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.restaurant });
+      } else if (/steamgames|wl \*steam|csgo-skins/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.games });
+      } else if (/affirm\.com|afterpay/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.installments });
+      } else if (/tuscany villas/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.rent });
+      } else if (/monthly maintenance fee/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.bankFee });
+      } else if (/bkofamerica atm|withdrwl/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.atm });
+      } else if (/costco gas|chevron|super fuel/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.gas });
+      } else if (/jalisco tire|city terrace car wash|lawndale car wash/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.auto });
+      } else if (/costco whse|wm supercenter|wal-mart|walmart|trader joe|ralphs|safeway/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.market });
+      } else if (/cvs\/pharmacy|pharmacy/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.health });
+      } else if (/mcdonalds|domino|olive garden|restaurant|tst\*|applebees|fogo de chao|pizza|sushi|cafe|coffee|bj's|tacos|octopus japanese|the rock inn/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.restaurant });
+      } else if (/target|temu|aliexpress|magnets pier|ace har/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.shopping });
       }
+      const learnedCategory = state.finance.settings?.merchantRules?.[financeMerchantKey(item.description || item.merchant || '')];
+      if (learnedCategory && item.subtype !== 'transfer' && item.categoryId !== learnedCategory) assign({ categoryId:learnedCategory });
     });
     return changed;
   }
