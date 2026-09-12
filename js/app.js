@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 21;
+  const DATA_VERSION = 22;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
   const FINANCE_DEFAULT_CATEGORIES = ['Gasolina','Mercado','Restaurante','Aluguel / Moradia','Contas','Compras','Transporte','Automóvel','Lazer','Saúde','Pets','Criança / Família','Assinaturas','Outros'];
@@ -603,6 +603,101 @@
     });
     return changed;
   }
+  function importFinanceChecking7003User1Screens() {
+    ensureFinanceState();
+    const batchId = 'batch-bofa-checking-7003-user1-2026-07-09-screens-001';
+    const accountId = financeEnsureOption('accounts','Adv Plus Banking - 7003');
+    const category = name => financeEnsureOption('categories',name);
+    const cat = {
+      income: category('Renda / Depósito'),
+      zelle: category('Zelle / Transferência'),
+      transfer: category('Transferência entre contas'),
+      cardPayment: category('Pagamento / Crédito'),
+      cashback: category('Cashback / Recompensa'),
+      rent: category('Aluguel / Moradia'),
+      auto: category('Automóvel'),
+      bankFee: category('Taxas bancárias'),
+      reimbursement: category('Reembolso / Outros recebimentos')
+    };
+    if (!state.finance.importBatches.some(batch => batch.id === batchId)) state.finance.importBatches.push({ id:batchId, source:'codex-screenshots', notes:'Conta checking Usuário 1 - Bank of America Adv Plus Banking - 7003', createdAt:'2026-09-11T19:00:00.000Z' });
+    const rows = [
+      ['2026-07-29','Zelle payment from IVO DE SOUZA Conf# ry10a83p8',125.00,'income',cat.zelle,'posted','income','Foto 10 - Zelle recebido'],
+      ['2026-07-30','Zelle payment from JONATAS DOS SANTOS ALVES Conf# sr9rc8v3y',200.00,'income',cat.zelle,'posted','income','Foto 10 - Zelle recebido'],
+      ['2026-07-30','Monthly Maintenance Fee',12.00,'expense',cat.bankFee,'posted','regular','Foto 10 - taxa bancária'],
+      ['2026-07-31','Zelle payment from GABRIEL ZANCHET Conf# t0836uaq4',125.00,'income',cat.zelle,'posted','income','Foto 10 - Zelle recebido'],
+      ['2026-07-31','Amazon Logistics DES:PAYMENTS ID:TLRXXXX7992592 INDN:KARLA LUMSDEN CO ID:XXXXX15589 CCD',7.64,'income',cat.income,'posted','income','Foto 10 - depósito Amazon Logistics'],
+      ['2026-08-03','Zelle Recurring payment from PEDRO RIQUE GONDIM Conf# rsvjfqtom',125.00,'income',cat.zelle,'posted','income','Foto 10 - Zelle recebido'],
+      ['2026-08-03','Zelle payment from THIAGO DA SILVA Conf# y0w0oc998',100.00,'income',cat.zelle,'posted','income','Foto 10 - Zelle recebido'],
+      ['2026-08-03','Tuscany Villas S DES:WEB PMTS ID:8TNQJG INDN:Matheus Damasceno T?vo CO',2760.21,'expense',cat.rent,'posted','regular','Foto 9 - aluguel/moradia'],
+      ['2026-08-03','LENDBUZZ FUNDING DES:AUTO LOAN ID:975005_6964074 INDN:MATHEUS DAMASCENO TAVO CO ID:SDS23355M7 PPD',520.66,'expense',cat.auto,'posted','regular','Foto 9 - auto loan'],
+      ['2026-08-04','Online Banking transfer from CHK 9334 Confirmation# XXXXX30968',1400.00,'income',cat.transfer,'posted','transfer','Foto 9 - transferência entre contas'],
+      ['2026-08-05','Zelle payment from JONATAS DOS SANTOS ALVES Conf# zuxbd4rgg',200.00,'income',cat.zelle,'posted','income','Foto 9 - Zelle recebido'],
+      ['2026-08-05','Zelle payment from IVO DE SOUZA Conf# q4skdwaiu',125.00,'income',cat.zelle,'posted','income','Foto 9 - Zelle recebido'],
+      ['2026-08-05','Zelle payment to PLINIO SERRA FORCHERO Conf# nf0vfp2t3',27.00,'expense',cat.zelle,'posted','regular','Foto 9 - Zelle enviado'],
+      ['2026-08-07','Zelle payment from GABRIEL ZANCHET Conf# vokpaljc2',125.00,'income',cat.zelle,'posted','income','Foto 9 - Zelle recebido'],
+      ['2026-08-10','Zelle payment to PLINIO SERRA FORCHERO Conf# xik9sjy09',54.00,'expense',cat.zelle,'posted','regular','Foto 8 - Zelle enviado'],
+      ['2026-08-11','Zelle payment from PEDRO RIQUE GONDIM Conf# oswuu9cj1',125.00,'income',cat.zelle,'posted','income','Foto 8 - Zelle recebido'],
+      ['2026-08-12','Zelle payment from TONY DIAZ for "breville espresso machine"; Conf# 99csvlmal',480.00,'income',cat.reimbursement,'posted','reimbursement','Foto 8 - reembolso/outro recebimento'],
+      ['2026-08-12','Zelle payment from IVO DE SOUZA Conf# fkxk06ssr',125.00,'income',cat.zelle,'posted','income','Foto 8 - Zelle recebido'],
+      ['2026-08-13','Zelle payment from JONATAS DOS SANTOS ALVES Conf# zsvvbzfko',200.00,'income',cat.zelle,'posted','income','Foto 8 - Zelle recebido'],
+      ['2026-08-14','Current DES:Current ID:5bw7ij7spue5b0n INDN:Matheus Tavora CO ID:XXXXX33573 PPD',366.50,'income',cat.income,'posted','income','Foto 8 - depósito Current'],
+      ['2026-08-14','Zelle payment from GABRIEL ZANCHET Conf# s39rkqr0s',125.00,'income',cat.zelle,'posted','income','Foto 8 - Zelle recebido'],
+      ['2026-08-14','Bank of America DES:CASHREWARD ID:DAMASCENO TAVOR INDN:XXXXX0062XXX',4.58,'income',cat.cashback,'posted','cashback','Foto 7 - cash reward'],
+      ['2026-08-17','Zelle payment from JONATAS DOS SANTOS ALVES Conf# zsq2dzyde',66.46,'income',cat.zelle,'posted','income','Foto 7 - Zelle recebido'],
+      ['2026-08-17','Zelle payment to NATALIA M C Conf# we5h7mf8n',218.00,'expense',cat.zelle,'posted','regular','Foto 7 - Zelle enviado'],
+      ['2026-08-18','Current DES:Current ID:5zy210ybpy0rec8 INDN:Matheus Tavora CO ID:XXXXX33573 PPD',332.50,'income',cat.income,'posted','income','Foto 7 - depósito Current'],
+      ['2026-08-18','Current DES:Current ID:nc6mqou0bsg8c36 INDN:Matheus Tavora CO ID:XXXXX33573 PPD',183.50,'income',cat.income,'posted','income','Foto 7 - depósito Current'],
+      ['2026-08-18','Zelle payment from THIAGO DA SILVA Conf# ve0frwx5u',105.00,'income',cat.zelle,'posted','income','Foto 7 - Zelle recebido'],
+      ['2026-08-19','Zelle payment from IVO DE SOUZA Conf# cv3pptnqk',125.00,'income',cat.zelle,'posted','income','Foto 7 - Zelle recebido'],
+      ['2026-08-20','Zelle payment from JONATAS DOS SANTOS ALVES Conf# o9ckxesge',200.00,'income',cat.zelle,'posted','income','Foto 6 - Zelle recebido'],
+      ['2026-08-20','Zelle payment from PEDRO RIQUE GONDIM Conf# lnujmm25l',107.00,'income',cat.zelle,'posted','income','Foto 6 - Zelle recebido'],
+      ['2026-08-20','Mobile Banking payment to CRD 5903 Confirmation# z874xsja5',1064.55,'expense',cat.cardPayment,'posted','transfer','Foto 6 - pagamento do cartão 5903'],
+      ['2026-08-20','Mobile Banking payment to CRD 0034 Confirmation# zfanssrex',303.72,'expense',cat.cardPayment,'posted','transfer','Foto 6 - pagamento do cartão 0034'],
+      ['2026-08-21','Current DES:Current ID:3qtgccc v72p6s4r INDN:Matheus Tavora CO ID:XXXXX33573 PPD',325.00,'income',cat.income,'posted','income','Foto 6 - depósito Current'],
+      ['2026-08-21','Zelle payment from GABRIEL ZANCHET Conf# ujl70dpc0',125.00,'income',cat.zelle,'posted','income','Foto 6 - Zelle recebido'],
+      ['2026-08-24','Zelle payment to Amor Conf# wwtu3jtol',810.00,'expense',cat.zelle,'posted','regular','Foto 6 - Zelle enviado'],
+      ['2026-08-25','Current DES:Current ID:yop7yoph4j267as INDN:Matheus Tavora CO ID:XXXXX33573 PPD',152.00,'income',cat.income,'posted','income','Foto 5 - depósito Current'],
+      ['2026-08-26','Zelle payment from IVO DE SOUZA Conf# bz6mz2uip',125.00,'income',cat.zelle,'posted','income','Foto 5 - Zelle recebido'],
+      ['2026-08-27','Zelle payment from JONATAS DOS SANTOS ALVES Conf# tzgg43kru',200.00,'income',cat.zelle,'posted','income','Foto 5 - Zelle recebido'],
+      ['2026-08-28','Current DES:Current ID:1k540ptwz4c5mtk INDN:Matheus Tavora CO ID:XXXXX33573 PPD',255.00,'income',cat.income,'posted','income','Foto 5 - depósito Current'],
+      ['2026-08-28','Zelle payment from GABRIEL ZANCHET Conf# s1i7kp2al',125.00,'income',cat.zelle,'posted','income','Foto 5 - Zelle recebido'],
+      ['2026-08-31','Zelle payment from PEDRO RIQUE GONDIM Conf# liyubn0hc',125.00,'income',cat.zelle,'posted','income','Foto 5 - Zelle recebido'],
+      ['2026-08-31','Online Banking transfer to CHK 9334 Confirmation# XXXXX60004',1500.00,'expense',cat.transfer,'posted','transfer','Foto 5 - transferência entre contas'],
+      ['2026-08-31','Zelle payment to SANDRA SANCHEZ Conf# vv9ur5d74',6.00,'expense',cat.zelle,'posted','regular','Foto 4 - Zelle enviado'],
+      ['2026-08-31','Zelle payment to PLINIO SERRA FORCHERO Conf# td9c97qxt',27.00,'expense',cat.zelle,'posted','regular','Foto 4 - Zelle enviado'],
+      ['2026-09-02','Online Banking transfer from CHK 9334 Confirmation# XXXXX04080',1500.00,'income',cat.transfer,'posted','transfer','Foto 4 - transferência entre contas'],
+      ['2026-09-02','Zelle payment from IVO DE SOUZA Conf# bjej26z4w',125.00,'income',cat.zelle,'posted','income','Foto 4 - Zelle recebido'],
+      ['2026-09-02','Zelle payment from JONATAS DOS SANTOS ALVES Conf# tcseabn8h',100.00,'income',cat.zelle,'posted','income','Foto 4 - Zelle recebido'],
+      ['2026-09-02','Zelle payment to SANDRA SANCHEZ Conf# s97t178gf',8.00,'expense',cat.zelle,'posted','regular','Foto 4 - Zelle enviado'],
+      ['2026-09-02','LENDBUZZ FUNDING DES:AUTO LOAN ID:975005_7221323 INDN:MATHEUS DAMASCENO TAVO CO ID:GXXXXX7556 PPD',520.66,'expense',cat.auto,'posted','regular','Foto 4 - auto loan'],
+      ['2026-09-03','Current DES:Current ID:j01g7wi0zgr8zhn INDN:Matheus Tavora CO ID:XXXXX33573 PPD',289.50,'income',cat.income,'posted','income','Foto 3 - depósito Current'],
+      ['2026-09-03','Tuscany Villas S DES:WEB PMTS ID:ZYC5NG INDN:Matheus Damasceno T?vo CO ID:XXXXX88861 WEB',2763.84,'expense',cat.rent,'posted','regular','Foto 3 - aluguel/moradia'],
+      ['2026-09-04','Current DES:Current ID:tq2g8x4lja20glx INDN:Matheus Tavora CO ID:XXXXX33573 PPD',222.50,'income',cat.income,'posted','income','Foto 3 - depósito Current'],
+      ['2026-09-04','Zelle payment from GABRIEL ZANCHET Conf# xm9kbt11w',125.00,'income',cat.zelle,'posted','income','Foto 3 - Zelle recebido'],
+      ['2026-09-08','Zelle payment from PEDRO RIQUE GONDIM Conf# mfn723d80',125.00,'income',cat.zelle,'posted','income','Foto 3 - Zelle recebido'],
+      ['2026-09-08','Current DES:Current ID:tuih1y27mdqw710 INDN:Matheus Tavora CO ID:XXXXX33573 PPD',79.50,'income',cat.income,'posted','income','Foto 3 - depósito Current'],
+      ['2026-09-09','Current DES:Current ID:yvd6y0jspq5luu9 INDN:Matheus Tavora CO ID:XXXXX33573 PPD',465.00,'income',cat.income,'posted','income','Foto 2 - depósito Current'],
+      ['2026-09-09','Zelle payment from IVO DE SOUZA Conf# ag446myke',125.00,'income',cat.zelle,'posted','income','Foto 2 - Zelle recebido'],
+      ['2026-09-09','Current DES:Current ID:tnklpwqpgz4gzs0 INDN:Matheus Tavora CO ID:XXXXX33573 PPD',119.50,'income',cat.income,'posted','income','Foto 2 - depósito Current'],
+      ['2026-09-09','Zelle payment from JONATAS DOS SANTOS ALVES Conf# vdrwe5uo8',100.00,'income',cat.zelle,'posted','income','Foto 2 - Zelle recebido'],
+      ['2026-09-10','Zelle payment to PLINIO SERRA FORCHERO Conf# xyp79xem1',38.00,'expense',cat.zelle,'posted','regular','Foto 2 - Zelle enviado'],
+      ['2026-09-10','Zelle payment to SANDRA SANCHEZ Conf# xzf2rn4y7',8.00,'expense',cat.zelle,'posted','regular','Foto 1 - Zelle enviado'],
+      ['2026-09-11','ACH CREDIT Current Current ON 09/11',232.50,'income',cat.income,'pending','income','Foto 1 - processing'],
+      ['2026-09-11','ACH CREDIT Current Current ON 09/11',126.00,'income',cat.income,'pending','income','Foto 1 - processing'],
+      ['2026-09-11','Zelle Transfer Conf# PUE91XEQT; GABRIEL ZANCHET',125.00,'income',cat.zelle,'pending','income','Foto 1 - processing Zelle recebido']
+    ];
+    const existing = new Set((state.finance.transactions || []).flatMap(item => [item.id, item.externalFingerprint].filter(Boolean)));
+    let changed = false;
+    rows.forEach(([date,description,amount,type,categoryId,status,subtype,notes], index) => {
+      const sameDaySameAmountKey = ['ACH CREDIT Current Current ON 09/11'].includes(description) ? `|${index}` : '';
+      const externalFingerprint = `bofa-checking-7003|${date}|${description}|${amount.toFixed(2)}|${status}${sameDaySameAmountKey}`;
+      const id = `fin-${slugify(externalFingerprint)}`;
+      if (existing.has(id) || existing.has(externalFingerprint)) return;
+      state.finance.transactions.push({ id, date, description, merchant:description, amount, type, responsible:'user1', categoryId, accountId, status, subtype, notes, importBatchId:batchId, externalFingerprint, createdAt:'2026-09-11T19:00:00.000Z', updatedAt:'2026-09-11T19:00:00.000Z' });
+      existing.add(id); existing.add(externalFingerprint); changed = true;
+    });
+    return changed;
+  }
   window.financeBulkInsert = (records, options) => { const batch = importFinanceTransactions(records, options); saveState(); renderFinance(); return batch; };
   async function sha256(value) { const bytes = new TextEncoder().encode(value); const hash = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2,'0')).join(''); }
   function closeDialogs() { document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close()); }
@@ -1002,6 +1097,7 @@
     if (importFinanceTravelRewards5903User1Screens()) changed = true;
     if (importFinanceUnlimited0034User1Screens()) changed = true;
     if (importFinanceChecking9334User1Screens()) changed = true;
+    if (importFinanceChecking7003User1Screens()) changed = true;
     if (importPaymentHistory()) changed = true;
     if (importAmazonFlexEarningsFromScreens()) changed = true;
     if (importAmazonFlexSecondAccountScreens()) changed = true;
