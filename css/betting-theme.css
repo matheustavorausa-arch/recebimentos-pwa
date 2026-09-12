@@ -50,6 +50,16 @@ body.theme-light .module-card.earnings {
     radial-gradient(circle at 84% 18%, rgba(183,107,18,.18), transparent 88px),
     linear-gradient(145deg,#fffdf2,#fff4c7);
 }
+body.theme-light .module-card.finance {
+  border-color:#b7cce6;
+  background:
+    radial-gradient(circle at 84% 18%, rgba(74,163,255,.18), transparent 88px),
+    linear-gradient(135deg,#eef7ff,#ffffff);
+}
+body.theme-light .finance-controls label,
+body.theme-light .finance-mini-form input { color:#3c4743; }
+body.theme-light .finance-controls select,
+body.theme-light .finance-mini-form input { color:#17211e; border-color:#ccd6d2; background:#fff; }
 body.theme-light .dialog,
 body.theme-light .dialog-body,
 body.theme-light .dialog form { color:var(--ink); background:#fff; }
@@ -124,6 +134,13 @@ main { max-width:820px; }
 .payment-timer { color:#171000; background:var(--amber); }.payment-timer.overdue { color:#fff; background:var(--red); }
 .auth-card,.earnings-card,.module-card { color:var(--ink); border-color:#2b3933; background:linear-gradient(145deg,#18221e,#111815); box-shadow:var(--shadow); }
 .auth-card p,.module-card small { color:var(--muted); }.module-card.earnings { border-color:#6d5b22; background:linear-gradient(145deg,#221d10,#121815); }
+.module-card.finance { color:var(--ink); border-color:rgba(74,163,255,.34); background:radial-gradient(circle at 85% 18%, rgba(74,163,255,.12), transparent 92px),linear-gradient(145deg,#14221f,#101815); }
+.module-card.finance small { color:var(--muted); }
+.finance-controls label { color:#aebbb5; }
+.finance-controls select,
+.finance-mini-form input { color:var(--ink); border-color:#34443c; background:#0a100d; }
+.finance-controls select:focus,
+.finance-mini-form input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(25,220,130,.12); }
 .auth-card label,.earning-form label,.goal-form label { color:#bec9c3; }.auth-card input,.earning-form input,.earning-form select,.earning-form textarea,.goal-form input { color:var(--ink); border-color:#34443c; background:#0a100d; }
 .report-item { color:var(--ink); border-color:var(--line); background:#0f1713; }.report-item span { color:var(--muted); }
 ::-webkit-scrollbar { width:8px; height:8px; } ::-webkit-scrollbar-thumb { background:#304239; border-radius:999px; } ::-webkit-scrollbar-track { background:#0b110e; }
