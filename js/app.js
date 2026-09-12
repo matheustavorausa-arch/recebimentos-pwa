@@ -301,14 +301,21 @@
     const range = financePeriodRange(); if ($('financePeriodLabel')) $('financePeriodLabel').textContent = range.label;
     const stats = financeStats();
     const balance = stats.income - stats.expense;
-    const totalFlow = Math.max(stats.income, stats.expense, 1);
-    const expenseRatio = Math.min(100, Math.round((stats.expense / totalFlow) * 100));
+    const expenseRatio = stats.income > 0 ? Math.min(999, Math.round((stats.expense / stats.income) * 100)) : (stats.expense > 0 ? 100 : 0);
+    const coverageRatio = stats.expense > 0 ? Math.min(100, Math.round((stats.income / stats.expense) * 100)) : (stats.income > 0 ? 100 : 0);
+    const coverageVisualRatio = coverageRatio > 0 ? Math.max(4, coverageRatio) : 0;
+    const coverageColor = balance >= 0 ? 'var(--green)' : (coverageRatio >= 50 ? 'var(--amber)' : 'var(--red)');
     if ($('financeHeroMonth')) $('financeHeroMonth').textContent = range.label.replace(' de ', ' ').replace('Tudo', 'Tudo');
     if ($('financeHeroBalance')) $('financeHeroBalance').textContent = dollars(balance);
     if ($('financeHeroIncome')) $('financeHeroIncome').textContent = dollars(stats.income);
     if ($('financeHeroExpense')) $('financeHeroExpense').textContent = dollars(stats.expense);
-    if ($('financeHeroBar')) $('financeHeroBar').style.width = `${expenseRatio}%`;
-    if ($('financeHeroPending')) $('financeHeroPending').textContent = `Pendentes: entradas ${dollars(stats.pendingIncome)} · saídas ${dollars(stats.pendingExpense)}`;
+    if ($('financeHeroBar')) {
+      $('financeHeroBar').style.width = `${coverageVisualRatio}%`;
+      $('financeHeroBar').style.background = coverageColor;
+      $('financeHeroBar').title = `Entradas cobrem ${coverageRatio}% das saídas`;
+      $('financeHeroBar').parentElement?.setAttribute('aria-label', `Entradas cobrem ${coverageRatio}% das saídas`);
+    }
+    if ($('financeHeroPending')) $('financeHeroPending').textContent = `Cobertura ${coverageRatio}% · pendentes +${dollars(stats.pendingIncome)} / ${dollars(stats.pendingExpense)}`;
     if ($('financeIncomeTotal')) $('financeIncomeTotal').textContent = dollars(stats.income);
     if ($('financeExpenseTotal')) $('financeExpenseTotal').textContent = dollars(stats.expense);
     if ($('financeBalanceTotal')) $('financeBalanceTotal').textContent = dollars(balance);
@@ -319,7 +326,7 @@
     if ($('financeCategoryBreakdown')) $('financeCategoryBreakdown').innerHTML = Object.entries(stats.expensesByCategory).length ? Object.entries(stats.expensesByCategory).sort((a,b) => b[1] - a[1]).map(([label,value]) => detailRow(label,dollars(value))).join('') : empty('Nenhuma despesa confirmada neste período.');
     if ($('financeResponsibleBreakdown')) $('financeResponsibleBreakdown').innerHTML = Object.entries(stats.byResponsible).length ? Object.entries(stats.byResponsible).map(([label,value]) => detailRow(label,`Entradas ${dollars(value.income)} · Despesas ${dollars(value.expense)} · Saldo ${dollars(value.income - value.expense)}`)).join('') : empty('Nenhuma transação confirmada neste período.');
     if ($('financeRecentTransactions')) $('financeRecentTransactions').innerHTML = stats.records.slice(0,6).length ? stats.records.slice(0,6).map(financeTransactionRow).join('') : empty('Nenhuma transação cadastrada ainda.');
-    if ($('financeAnalysisSummary')) $('financeAnalysisSummary').innerHTML = `<article><span>Gasto</span><strong>${dollars(stats.expense)}</strong><small>${expenseRatio}% das entradas confirmadas</small></article><article><span>Saldo</span><strong>${dollars(balance)}</strong><small>${balance >= 0 ? 'positivo no período' : 'negativo no período'}</small></article>`;
+    if ($('financeAnalysisSummary')) $('financeAnalysisSummary').innerHTML = `<article><span>Gasto</span><strong>${dollars(stats.expense)}</strong><small>${expenseRatio}% das entradas confirmadas</small></article><article><span>Cobertura</span><strong>${coverageRatio}%</strong><small>entradas sobre saídas</small></article><article><span>Saldo</span><strong>${dollars(balance)}</strong><small>${balance >= 0 ? 'positivo no período' : 'negativo no período'}</small></article>`;
     if ($('financeAnalysisCategories')) {
       const totalExpense = Math.max(stats.expense, 1);
       const rows = Object.entries(stats.expensesByCategory).sort((a,b) => b[1] - a[1]).slice(0,8);
