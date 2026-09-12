@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 22;
+  const DATA_VERSION = 23;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
   const FINANCE_DEFAULT_CATEGORIES = ['Gasolina','Mercado','Restaurante','Aluguel / Moradia','Contas','Compras','Transporte','Automóvel','Lazer','Saúde','Pets','Criança / Família','Assinaturas','Outros'];
@@ -170,6 +170,19 @@
   function financeResponsibleLabel(value) { return state.finance?.settings?.[`${value}Label`] || FINANCE_RESPONSIBLES[value] || value || 'Todos'; }
   function financeCategoryById(id) { return (state.finance?.categories || []).find(item => item.id === id) || { id, name:'Outros' }; }
   function financeAccountById(id) { return (state.finance?.accounts || []).find(item => item.id === id) || { id, name:'Sem conta' }; }
+  function financeAccountKind(account = {}) {
+    const text = `${account.name || ''} ${account.id || ''}`.toLowerCase();
+    if (/(visa|credit|rewards|signature|card|crd|cart[aã]o)/i.test(text)) return 'credit';
+    if (/(checking|banking|chk|ckg|conta)/i.test(text)) return 'checking';
+    return 'other';
+  }
+  function financeAccountKindLabel(kind) { return { credit:'Cartões de crédito', checking:'Contas checking', other:'Outras contas' }[kind] || 'Outras contas'; }
+  function isFinanceTransfer(item) { return item.subtype === 'transfer'; }
+  function financeTransactionTone(item) {
+    if (item.status === 'pending') return 'pending';
+    if (isFinanceTransfer(item)) return 'transfer';
+    return item.type === 'income' ? 'income' : 'expense';
+  }
   function financePeriodRange(period = financeFilter.period) {
     const today = new Date();
     if (period === 'week') { const start = startOfWeek(today); const end = new Date(start); end.setDate(start.getDate() + 7); return { start:localDate(start), end:localDate(end), label:`Semana de ${formatShort(start)}` }; }
@@ -219,25 +232,34 @@
     const status = item.status === 'pending' ? 'Pendente' : 'Confirmada';
     const type = item.subtype === 'transfer' ? (item.type === 'income' ? 'Transferência recebida' : 'Transferência / pagamento') : (item.type === 'income' ? 'Entrada' : 'Despesa');
     const badge = item.status === 'pending' ? 'status-unpaid' : (item.type === 'income' ? 'status-paid' : 'status-partial');
-    const sign = item.type === 'income' ? '+' : '-';
-    return `<article class="detail-item finance-transaction ${item.status === 'pending' ? 'pending-transaction' : ''}"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.description || item.merchant || 'Sem descrição')}</strong><span>${escapeHtml(type)} · ${escapeHtml(financeResponsibleLabel(item.responsible))} · ${escapeHtml(financeCategoryById(item.categoryId).name)} · ${escapeHtml(financeAccountById(item.accountId).name)}</span>${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}<small class="status-badge ${badge}">${status}</small></div><div class="finance-row-side"><strong>${sign}${dollars(item.amount)}</strong><div class="detail-actions"><button type="button" data-edit-finance="${item.id}">Editar</button>${item.status === 'pending' ? `<button type="button" data-post-finance="${item.id}">Confirmar</button>` : ''}<button class="delete" type="button" data-delete-finance="${item.id}">Excluir</button></div></div></article>`;
+    const tone = financeTransactionTone(item);
+    const sign = item.type === 'income' && !isFinanceTransfer(item) ? '+' : '';
+    const category = financeCategoryById(item.categoryId).name;
+    const account = financeAccountById(item.accountId).name;
+    return `<article class="detail-item finance-transaction finance-${tone} ${item.status === 'pending' ? 'pending-transaction' : ''}"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.description || item.merchant || 'Sem descrição')}</strong><span>${escapeHtml(type)} · ${escapeHtml(financeResponsibleLabel(item.responsible))} · ${escapeHtml(account)}</span><div class="finance-pills"><button type="button" class="finance-category-pill" data-edit-finance="${item.id}">${escapeHtml(category)}</button><small class="status-badge ${badge}">${status}</small></div>${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}</div><div class="finance-row-side"><strong>${sign}${dollars(item.amount)}</strong><div class="detail-actions"><button type="button" data-edit-finance="${item.id}">Editar</button>${item.status === 'pending' ? `<button type="button" data-post-finance="${item.id}">Confirmar</button>` : ''}<button class="delete" type="button" data-delete-finance="${item.id}">Excluir</button></div></div></article>`;
   }
   function renderFinanceCards(records) {
     if (!$('financeCardsList')) return;
     const byAccount = {};
     records.forEach(item => {
       const account = financeAccountById(item.accountId);
-      byAccount[account.id] ||= { name:account.name, purchases:0, credits:0, pending:0, count:0 };
+      const kind = financeAccountKind(account);
+      byAccount[account.id] ||= { name:account.name, kind, purchases:0, credits:0, transfers:0, pending:0, count:0 };
       byAccount[account.id].count++;
       if (item.status === 'pending') byAccount[account.id].pending += Number(item.amount || 0);
+      else if (isFinanceTransfer(item)) byAccount[account.id].transfers += Number(item.amount || 0);
       else if (item.type === 'income') byAccount[account.id].credits += Number(item.amount || 0);
       else byAccount[account.id].purchases += Number(item.amount || 0);
     });
-    const cards = Object.values(byAccount).sort((a,b) => (b.purchases + b.pending) - (a.purchases + a.pending));
-    $('financeCardsList').innerHTML = cards.length ? cards.map(card => {
-      const balance = card.purchases - card.credits;
-      return `<article class="finance-account-card"><div><span>Cartão / conta</span><strong>${escapeHtml(card.name)}</strong></div><div class="finance-account-numbers"><p><span>Compras</span><strong>${dollars(card.purchases)}</strong></p><p><span>Pagamentos/créditos</span><strong>${dollars(card.credits)}</strong></p><p><span>Pendentes</span><strong>${dollars(card.pending)}</strong></p><p><span>Saldo do período</span><strong>${dollars(balance)}</strong></p></div><small>${card.count} transação${card.count === 1 ? '' : 'ões'} no filtro atual</small></article>`;
-    }).join('') : empty('Nenhum cartão/conta com transações neste filtro.');
+    const cards = Object.values(byAccount).sort((a,b) => a.kind.localeCompare(b.kind) || (b.purchases + b.pending + b.credits) - (a.purchases + a.pending + a.credits));
+    if (!cards.length) { $('financeCardsList').innerHTML = empty('Nenhum cartão/conta com transações neste filtro.'); return; }
+    $('financeCardsList').innerHTML = ['checking','credit','other'].map(kind => {
+      const group = cards.filter(card => card.kind === kind);
+      if (!group.length) return '';
+      const totals = group.reduce((acc, card) => ({ purchases:acc.purchases + card.purchases, credits:acc.credits + card.credits, transfers:acc.transfers + card.transfers, pending:acc.pending + card.pending, count:acc.count + card.count }), { purchases:0, credits:0, transfers:0, pending:0, count:0 });
+      const items = group.map(card => `<article class="finance-account-card"><div><span>${financeAccountKindLabel(card.kind).slice(0,-1)}</span><strong>${escapeHtml(card.name)}</strong></div><div class="finance-account-numbers"><p><span>Entradas reais</span><strong>${dollars(card.credits)}</strong></p><p><span>Saídas reais</span><strong>${dollars(card.purchases)}</strong></p><p><span>Transferências</span><strong>${dollars(card.transfers)}</strong></p><p><span>Pendentes</span><strong>${dollars(card.pending)}</strong></p></div><small>${card.count} transação${card.count === 1 ? '' : 'ões'} no filtro atual</small></article>`).join('');
+      return `<section class="finance-account-zone"><div class="finance-zone-head"><div><span>Zona</span><strong>${financeAccountKindLabel(kind)}</strong></div><small>${totals.count} transações · saídas ${dollars(totals.purchases)} · transferências ${dollars(totals.transfers)}</small></div>${items}</section>`;
+    }).join('');
   }
   function renderFinanceSettings() {
     if ($('financeCategoriesList')) $('financeCategoriesList').innerHTML = (state.finance?.categories || []).map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`).join('') || empty('Nenhuma categoria.');
@@ -342,6 +364,37 @@
     const id = slugify(name);
     list.push({ id, name, archived:false, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() });
     return id;
+  }
+  function normalizeFinanceClassifications() {
+    ensureFinanceState();
+    const category = name => financeEnsureOption('categories',name);
+    const cat = {
+      salary: category('Trabalho / Salário'),
+      gigs: category('Ganhos extras / Bicos'),
+      rentIncome: category('Aluguéis / Repasses recebidos'),
+      transfer: category('Transferência entre contas'),
+      cardPayment: category('Pagamento / Crédito'),
+      zelleOut: category('Zelle enviado'),
+      cashback: category('Cashback / Recompensa')
+    };
+    let changed = false;
+    (state.finance.transactions || []).forEach(item => {
+      const text = `${item.description || ''} ${item.notes || ''}`.toLowerCase();
+      const assign = values => { Object.entries(values).forEach(([key,value]) => { if (item[key] !== value) { item[key] = value; changed = true; } }); };
+      if (/current des:current|ach credit current/.test(text)) {
+        assign({ type:'income', subtype:'income', categoryId:cat.salary });
+      } else if (/zelle (payment|transfer) from|zelle recurring payment from/.test(text)) {
+        const amount = Number(item.amount || 0);
+        assign({ type:'income', subtype:'income', categoryId: amount === 100 || amount === 125 || amount === 200 ? cat.gigs : cat.gigs });
+      } else if (/zelle payment to/.test(text)) {
+        assign({ type:'expense', subtype:'regular', categoryId:cat.zelleOut });
+      } else if (/online banking transfer|mobile banking payment to crd|payment from chk|payment to crd/.test(text)) {
+        assign({ subtype:'transfer', categoryId:/crd|payment from chk|payment to crd/.test(text) ? cat.cardPayment : cat.transfer });
+      } else if (/cashreward/.test(text)) {
+        assign({ type:'income', subtype:'cashback', categoryId:cat.cashback });
+      }
+    });
+    return changed;
   }
   function importFinanceTravelRewards5903User1Screens() {
     ensureFinanceState();
@@ -1117,6 +1170,7 @@
     if (importFinanceUnlimited0034User1Screens()) changed = true;
     if (importFinanceChecking9334User1Screens()) changed = true;
     if (importFinanceChecking7003User1Screens()) changed = true;
+    if (normalizeFinanceClassifications()) changed = true;
     if (importPaymentHistory()) changed = true;
     if (importAmazonFlexEarningsFromScreens()) changed = true;
     if (importAmazonFlexSecondAccountScreens()) changed = true;

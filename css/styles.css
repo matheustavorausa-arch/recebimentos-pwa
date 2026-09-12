@@ -173,6 +173,21 @@ body.auth-mode,body.home-mode { display:grid; place-items:center; padding:18px; 
 .finance-row-side > strong { font-size:1rem; letter-spacing:-.03em; }
 .finance-row-side .detail-actions { gap:5px; }
 .finance-row-side .detail-actions button { padding:7px 8px; border-radius:999px; font-size:.62rem; }
+.finance-pills { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:8px; }
+.finance-category-pill { display:inline-flex; min-height:26px; align-items:center; padding:5px 9px; border:0; border-radius:999px; color:#07110c; background:var(--green); font-size:.68rem; font-weight:900; }
+.finance-transfer .finance-category-pill { color:#161100; background:var(--amber); }
+.finance-expense .finance-category-pill { color:#fff; background:#d64b59; }
+.finance-pending .finance-category-pill { color:#161100; background:#f3c85b; }
+.finance-income .finance-row-side > strong { color:var(--green); }
+.finance-expense .finance-row-side > strong { color:#ff6675; }
+.finance-transfer .finance-row-side > strong { color:var(--amber); }
+.finance-pending .finance-row-side > strong { color:var(--amber); }
+.finance-account-zone { display:grid; gap:10px; }
+.finance-account-zone + .finance-account-zone { margin-top:16px; }
+.finance-zone-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; padding:0 4px; }
+.finance-zone-head span { display:block; color:var(--muted); font-size:.66rem; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+.finance-zone-head strong { display:block; margin-top:2px; font-size:1.05rem; letter-spacing:-.04em; }
+.finance-zone-head small { color:var(--muted); text-align:right; font-size:.68rem; line-height:1.35; }
 .finance-bottom-nav.earnings-tabs.finance-tabs { position:fixed; right:50%; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:16; display:grid; grid-template-columns:repeat(5,1fr); width:min(430px,calc(100% - 26px)); padding:7px; border:0; border-radius:25px; background:rgba(244,246,245,.86); box-shadow:0 12px 36px rgba(0,0,0,.16); transform:translateX(50%); backdrop-filter:blur(16px); }
 .finance-bottom-nav button { display:grid; min-width:0; min-height:45px; gap:2px; place-items:center; padding:5px 2px; border-radius:18px; color:#9a9f9c; font-size:.63rem; letter-spacing:0; text-transform:none; }
 .finance-bottom-nav button::before { content:attr(data-icon); display:block; font-size:1.05rem; line-height:1; }

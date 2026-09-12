@@ -415,6 +415,19 @@ body.theme-light .theme-switch button.active {
 .finance-module .finance-analysis-row small {
   color:var(--muted);
 }
+.finance-module .finance-category-pill {
+  color:#07110c;
+  background:var(--green);
+}
+.finance-module .finance-expense .finance-category-pill {
+  color:#fff;
+  background:#bd3a3a;
+}
+.finance-module .finance-transfer .finance-category-pill,
+.finance-module .finance-pending .finance-category-pill {
+  color:#171000;
+  background:var(--amber);
+}
 .finance-bottom-nav.earnings-tabs.finance-tabs {
   background:rgba(18,25,21,.88);
   box-shadow:0 12px 36px rgba(0,0,0,.34);
