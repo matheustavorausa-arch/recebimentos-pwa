@@ -225,6 +225,18 @@ body.auth-mode,body.home-mode { display:grid; place-items:center; padding:18px; 
 .finance-ring { --pct:0; position:relative; display:grid; width:48px; height:48px; place-items:center; border-radius:50%; background:conic-gradient(var(--green) calc(var(--pct) * 1%), rgba(143,154,149,.18) 0); }
 .finance-ring::after { content:""; position:absolute; width:36px; height:36px; border-radius:50%; background:var(--surface); }
 .finance-ring span { position:relative; z-index:1; color:var(--ink); font-size:.64rem; font-weight:950; }
+.finance-audit-list { display:grid; gap:10px; }
+.finance-audit-item { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; padding:13px; border-radius:18px; background:var(--surface); box-shadow:0 10px 24px rgba(0,0,0,.07); }
+.finance-audit-item.danger { box-shadow:inset 4px 0 0 var(--red), 0 10px 24px rgba(0,0,0,.07); }
+.finance-audit-item.warning { box-shadow:inset 4px 0 0 var(--amber), 0 10px 24px rgba(0,0,0,.07); }
+.finance-audit-item.muted { box-shadow:inset 4px 0 0 var(--muted), 0 10px 24px rgba(0,0,0,.07); }
+.finance-audit-item strong,.finance-audit-item span,.finance-audit-item small { display:block; }
+.finance-audit-item strong { font-size:.88rem; }
+.finance-audit-item span { margin-top:4px; color:var(--ink); font-size:.78rem; line-height:1.25; }
+.finance-audit-item small { margin-top:5px; color:var(--muted); font-size:.68rem; line-height:1.35; }
+.finance-audit-item > div:last-child { display:grid; gap:7px; justify-items:end; }
+.finance-audit-item b { font-size:.9rem; }
+.finance-audit-item button { padding:7px 10px; border:0; border-radius:999px; color:var(--brand); background:var(--brand-soft); font-size:.68rem; font-weight:900; }
 .finance-detail-hero,.finance-card-preview { padding:18px; border-radius:22px; color:#fff; background:#171817; box-shadow:0 16px 34px rgba(0,0,0,.18); }
 .finance-detail-hero span,.finance-detail-hero small,.finance-card-preview span,.finance-card-preview small { display:block; color:#c6cbc8; font-weight:850; }
 .finance-detail-hero strong,.finance-card-preview strong { display:block; margin:6px 0; font-size:1.65rem; letter-spacing:-.06em; }

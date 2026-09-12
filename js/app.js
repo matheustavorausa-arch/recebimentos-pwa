@@ -2,10 +2,10 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 24;
+  const DATA_VERSION = 25;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
-  const FINANCE_DEFAULT_CATEGORIES = ['Gasolina','Mercado','Restaurante','Aluguel / Moradia','Contas','Compras','Transporte','Automóvel','Lazer','Saúde','Pets','Seguro pet','Seguro auto','Pedágios','Estacionamento','Parcelamentos / Financiamentos','Criança / Família','Assinaturas','Outros'];
+  const FINANCE_DEFAULT_CATEGORIES = ['Trabalho / Salário','Ganhos extras / Bicos','Aluguéis / Repasses recebidos','Transferência entre contas','Pagamento de cartão','Cashback / Recompensa','Zelle enviado','Gasolina','Mercado','Restaurante','Aluguel / Moradia','Contas gerais','Contas de luz / água','Celular / Internet','Compras','Parcelamentos / Financiamentos','Transporte','Pedágios','Estacionamento','Automóvel','Seguro auto','Financiamento auto','Saúde','Pets','Seguro pet','Criança / Família','Assinaturas','Jogos / Lazer','Taxas bancárias','Saque ATM','Reembolso / Outros recebimentos','Outros'];
   const FINANCE_DEFAULT_ACCOUNTS = ['Checking','Savings','Credit Card 1','Credit Card 2'];
   const FINANCE_RESPONSIBLES = { user1:'Usuário 1', user2:'Usuário 2', shared:'Compartilhado' };
   const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -273,6 +273,66 @@
     const account = financeAccountById(item.accountId).name;
     return `<article class="detail-item finance-transaction finance-${tone} ${item.status === 'pending' ? 'pending-transaction' : ''}"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.description || item.merchant || 'Sem descrição')}</strong><span>${escapeHtml(type)} · ${escapeHtml(financeResponsibleLabel(item.responsible))} · ${escapeHtml(account)}</span><div class="finance-pills"><button type="button" class="finance-category-pill" data-edit-finance="${item.id}">${escapeHtml(category)}</button><small class="status-badge ${badge}">${status}</small></div>${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}</div><div class="finance-row-side"><strong>${sign}${dollars(item.amount)}</strong><div class="detail-actions"><button type="button" data-edit-finance="${item.id}">Editar</button>${item.status === 'pending' ? `<button type="button" data-post-finance="${item.id}">Confirmar</button>` : ''}<button class="delete" type="button" data-delete-finance="${item.id}">Excluir</button></div></div></article>`;
   }
+  function financeExpectedCategoryForText(text = {}) {
+    const raw = `${text.description || ''} ${text.notes || ''}`.toLowerCase();
+    const category = name => financeEnsureOption('categories',name);
+    if (/spot\s*pet|spotpet\.com/.test(raw)) return category('Seguro pet');
+    if (/geico/.test(raw)) return category('Seguro auto');
+    if (/lendbuzz/.test(raw)) return category('Financiamento auto');
+    if (/fastrak|toll roads?|express lanes?/.test(raw)) return category('Pedágios');
+    if (/spothero|impark|parking|golden gate nra parking/.test(raw)) return category('Estacionamento');
+    if (/so cal edison|southern california edison/.test(raw)) return category('Contas de luz / água');
+    if (/tmobile|t-mobile|at&t/.test(raw)) return category('Celular / Internet');
+    if (/apple\.com\/bill|apple com bill|doordashdashpass|dashpass/.test(raw)) return category('Assinaturas');
+    if (/steamgames|wl \*steam|csgo-skins/.test(raw)) return category('Jogos / Lazer');
+    if (/affirm\.com|afterpay/.test(raw)) return category('Parcelamentos / Financiamentos');
+    if (/jalisco tire|city terrace car wash|lawndale car wash/.test(raw)) return category('Automóvel');
+    return '';
+  }
+  function financeAuditRecords(records) {
+    const issues = [];
+    const seen = new Map();
+    records.forEach(item => {
+      const categoryName = financeCategoryById(item.categoryId).name;
+      const description = item.description || item.merchant || 'Sem descrição';
+      const text = `${description} ${item.notes || ''}`.toLowerCase();
+      const merchantKey = financeMerchantKey(description) || description.toLowerCase();
+      const duplicateKey = `${item.date}|${item.accountId}|${merchantKey}|${Number(item.amount || 0).toFixed(2)}|${item.type}|${item.status}`;
+      if (seen.has(duplicateKey)) {
+        issues.push({ item, tone:'warning', title:'Possível duplicado', detail:`Mesmo dia, valor e merchant de ${seen.get(duplicateKey)}.` });
+      } else {
+        seen.set(duplicateKey, formatDate(item.date));
+      }
+      const expectedCategory = financeExpectedCategoryForText(item);
+      if (expectedCategory && expectedCategory !== item.categoryId && item.subtype !== 'transfer') {
+        issues.push({ item, tone:'danger', title:'Categoria suspeita', detail:`Parece ser ${financeCategoryById(expectedCategory).name}, mas está em ${categoryName}.` });
+      }
+      if (['Outros','Compras','Contas gerais','Pets'].includes(categoryName) && item.subtype !== 'transfer') {
+        issues.push({ item, tone:'muted', title:'Categoria genérica', detail:`${categoryName} pode estar escondendo uma categoria mais específica.` });
+      }
+      if (/mobile banking payment to crd|payment from chk|payment to crd/.test(text) && item.subtype !== 'transfer') {
+        issues.push({ item, tone:'danger', title:'Pagamento de cartão sem transferência', detail:'Deve ficar como transferência para não duplicar despesa.' });
+      }
+      if (/online banking transfer/.test(text) && item.subtype !== 'transfer') {
+        issues.push({ item, tone:'warning', title:'Transferência sem subtipo', detail:'Transferências próprias devem ficar separadas dos gastos reais.' });
+      }
+      if (/zelle payment from|zelle transfer conf#|zelle recurring payment from/.test(text) && item.type !== 'income') {
+        issues.push({ item, tone:'danger', title:'Zelle recebido como saída', detail:'Parece entrada/bico, não despesa.' });
+      }
+    });
+    const unique = new Map();
+    issues.forEach(issue => {
+      const key = `${issue.item.id}|${issue.title}`;
+      if (!unique.has(key)) unique.set(key, issue);
+    });
+    return Array.from(unique.values()).slice(0, 18);
+  }
+  function financeAuditRow(issue) {
+    const { item } = issue;
+    const category = financeCategoryById(item.categoryId).name;
+    const sign = item.type === 'income' && !isFinanceTransfer(item) ? '+' : '';
+    return `<article class="finance-audit-item ${issue.tone}"><div><strong>${escapeHtml(issue.title)}</strong><span>${formatDate(item.date)} · ${escapeHtml(item.description || item.merchant || 'Sem descrição')}</span><small>${escapeHtml(issue.detail)} Categoria atual: ${escapeHtml(category)}</small></div><div><b>${sign}${dollars(item.amount)}</b><button type="button" data-edit-finance="${item.id}">Editar</button></div></article>`;
+  }
   function renderFinanceCards(records) {
     if (!$('financeCardsList')) return;
     const byAccount = {};
@@ -411,6 +471,9 @@
         return `<article class="finance-analysis-row"><div class="finance-ring" style="--pct:${pct}"><span>${pct}%</span></div><div><strong>${escapeHtml(label)}</strong><small>${dollars(value)} do total de despesas</small></div><b>${dollars(value)}</b></article>`;
       }).join('') : empty('Nenhuma despesa confirmada para analisar.');
     }
+    const auditIssues = financeAuditRecords(stats.records);
+    if ($('financeAuditCount')) $('financeAuditCount').textContent = String(auditIssues.length || '');
+    if ($('financeAuditList')) $('financeAuditList').innerHTML = auditIssues.length ? auditIssues.map(financeAuditRow).join('') : empty('Nenhuma suspeita encontrada neste filtro.');
     renderFinanceCards(stats.records);
     const purchases = stats.records.filter(item => item.type === 'expense' && item.subtype !== 'transfer');
     if ($('financePurchasesCount')) $('financePurchasesCount').textContent = String(purchases.length || '');
@@ -479,6 +542,69 @@
     list.push({ id, name, archived:false, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() });
     return id;
   }
+  function normalizeFinanceCategoryCatalog() {
+    ensureFinanceState();
+    const now = new Date().toISOString();
+    let changed = false;
+    const ensureCategory = name => {
+      const found = state.finance.categories.find(item => item.name.toLowerCase() === name.toLowerCase());
+      if (found) {
+        if (found.archived) { found.archived = false; found.updatedAt = now; changed = true; }
+        return found.id;
+      }
+      const id = slugify(name);
+      state.finance.categories.push({ id, name, archived:false, createdAt:now, updatedAt:now });
+      changed = true;
+      return id;
+    };
+    FINANCE_DEFAULT_CATEGORIES.forEach(ensureCategory);
+    const aliases = {
+      'Pagamento / Crédito':'Pagamento de cartão',
+      'Renda / Depósito':'Trabalho / Salário',
+      'Zelle / Transferência':'Ganhos extras / Bicos',
+      'Contas':'Contas gerais',
+      'Lazer':'Jogos / Lazer'
+    };
+    Object.entries(aliases).forEach(([fromName, toName]) => {
+      const from = state.finance.categories.find(item => item.name.toLowerCase() === fromName.toLowerCase());
+      const toId = ensureCategory(toName);
+      if (!from || from.id === toId) return;
+      (state.finance.transactions || []).forEach(item => {
+        if (item.categoryId === from.id) { item.categoryId = toId; changed = true; }
+      });
+      if (!from.archived || from.mergedInto !== toId) {
+        from.archived = true;
+        from.mergedInto = toId;
+        from.updatedAt = now;
+        changed = true;
+      }
+    });
+    const firstByName = new Map();
+    state.finance.categories.forEach(item => {
+      const key = item.name.toLowerCase();
+      if (!firstByName.has(key)) { firstByName.set(key, item); return; }
+      const keep = firstByName.get(key);
+      (state.finance.transactions || []).forEach(record => {
+        if (record.categoryId === item.id) { record.categoryId = keep.id; changed = true; }
+      });
+      if (!item.archived || item.mergedInto !== keep.id) {
+        item.archived = true;
+        item.mergedInto = keep.id;
+        item.updatedAt = now;
+        changed = true;
+      }
+    });
+    const order = new Map(FINANCE_DEFAULT_CATEGORIES.map((name,index) => [name.toLowerCase(), index]));
+    state.finance.categories.sort((a,b) => {
+      const archivedDiff = Number(Boolean(a.archived)) - Number(Boolean(b.archived));
+      if (archivedDiff) return archivedDiff;
+      const aOrder = order.has(a.name.toLowerCase()) ? order.get(a.name.toLowerCase()) : 999;
+      const bOrder = order.has(b.name.toLowerCase()) ? order.get(b.name.toLowerCase()) : 999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name);
+    });
+    return changed;
+  }
   function normalizeFinanceClassifications() {
     ensureFinanceState();
     const category = name => financeEnsureOption('categories',name);
@@ -487,14 +613,14 @@
       gigs: category('Ganhos extras / Bicos'),
       rentIncome: category('Aluguéis / Repasses recebidos'),
       transfer: category('Transferência entre contas'),
-      cardPayment: category('Pagamento / Crédito'),
+      cardPayment: category('Pagamento de cartão'),
       zelleOut: category('Zelle enviado'),
       cashback: category('Cashback / Recompensa'),
       gas: category('Gasolina'),
       market: category('Mercado'),
       restaurant: category('Restaurante'),
       rent: category('Aluguel / Moradia'),
-      bills: category('Contas'),
+      bills: category('Contas gerais'),
       utilities: category('Contas de luz / água'),
       mobile: category('Celular / Internet'),
       shopping: category('Compras'),
@@ -517,6 +643,7 @@
     (state.finance.transactions || []).forEach(item => {
       const text = `${item.description || ''} ${item.notes || ''}`.toLowerCase();
       const assign = values => { Object.entries(values).forEach(([key,value]) => { if (item[key] !== value) { item[key] = value; changed = true; } }); };
+      const hasHardRule = /current des:current|ach credit current|zelle (payment|transfer) from|zelle recurring payment from|zelle payment to|online banking transfer|mobile banking payment to crd|payment from chk|payment to crd|cashreward|spot\s*pet|spotpet\.com|geico|lendbuzz|fastrak|toll roads?|express lanes?|spothero|impark|parking|golden gate nra parking|clipper transit|waymo|so cal edison|southern california edison|tmobile|t-mobile|at&t|apple\.com\/bill|apple com bill|doordashdashpass|dashpass|dd \*doordash|doordash\.com|steamgames|wl \*steam|csgo-skins|affirm\.com|afterpay|tuscany villas|monthly maintenance fee|bkofamerica atm|withdrwl|costco gas|chevron|super fuel|jalisco tire|city terrace car wash|lawndale car wash|costco whse|wm supercenter|wal-mart|walmart|trader joe|ralphs|safeway|cvs\/pharmacy|pharmacy|mcdonalds|domino|olive garden|restaurant|tst\*|applebees|fogo de chao|pizza|sushi|cafe|coffee|bj's|tacos|octopus japanese|the rock inn|target|temu|aliexpress|magnets pier|ace har/.test(text);
       if (/current des:current|ach credit current/.test(text)) {
         assign({ type:'income', subtype:'income', categoryId:cat.salary });
       } else if (/zelle (payment|transfer) from|zelle recurring payment from/.test(text)) {
@@ -572,7 +699,7 @@
         assign({ type:'expense', subtype:'regular', categoryId:cat.shopping });
       }
       const learnedCategory = state.finance.settings?.merchantRules?.[financeMerchantKey(item.description || item.merchant || '')];
-      if (learnedCategory && item.subtype !== 'transfer' && item.categoryId !== learnedCategory) assign({ categoryId:learnedCategory });
+      if (learnedCategory && !hasHardRule && item.subtype !== 'transfer' && item.categoryId !== learnedCategory) assign({ categoryId:learnedCategory });
     });
     return changed;
   }
@@ -586,7 +713,7 @@
       market: category('Mercado'),
       auto: category('Automóvel'),
       shopping: category('Compras'),
-      credit: category('Pagamento / Crédito')
+      credit: category('Pagamento de cartão')
     };
     if (!state.finance.importBatches.some(batch => batch.id === batchId)) state.finance.importBatches.push({ id:batchId, source:'codex-screenshots', notes:'Cartão de crédito Usuário 1 - Travel Rewards Visa Signature - 5903', createdAt:'2026-09-11T16:00:00.000Z' });
     const rows = [
@@ -663,12 +790,12 @@
       market: category('Mercado'),
       auto: category('Automóvel'),
       shopping: category('Compras'),
-      credit: category('Pagamento / Crédito'),
+      credit: category('Pagamento de cartão'),
       restaurant: category('Restaurante'),
       transport: category('Transporte'),
       pets: category('Pets'),
       health: category('Saúde'),
-      leisure: category('Lazer')
+      leisure: category('Jogos / Lazer')
     };
     if (!state.finance.importBatches.some(batch => batch.id === batchId)) state.finance.importBatches.push({ id:batchId, source:'codex-screenshots', notes:'Cartão de crédito Usuário 1 - Unlimited Cash Rewards Visa Signature - 0034', createdAt:'2026-09-11T17:00:00.000Z' });
     const rows = [
@@ -752,19 +879,19 @@
     const accountId = financeEnsureOption('accounts','Checking 9334 / Card 9273');
     const category = name => financeEnsureOption('categories',name);
     const cat = {
-      income: category('Renda / Depósito'),
+      income: category('Trabalho / Salário'),
       transfer: category('Transferência entre contas'),
-      cardPayment: category('Pagamento / Crédito'),
+      cardPayment: category('Pagamento de cartão'),
       cashback: category('Cashback / Recompensa'),
       auto: category('Automóvel'),
       transport: category('Transporte'),
-      leisure: category('Lazer'),
+      leisure: category('Jogos / Lazer'),
       shopping: category('Compras'),
       subscriptions: category('Assinaturas'),
       restaurant: category('Restaurante'),
-      bills: category('Contas'),
+      bills: category('Contas gerais'),
       atm: category('Saque ATM'),
-      zelle: category('Zelle / Transferência')
+      zelle: category('Ganhos extras / Bicos')
     };
     if (!state.finance.importBatches.some(batch => batch.id === batchId)) state.finance.importBatches.push({ id:batchId, source:'codex-screenshots', notes:'Conta checking Usuário 1 - Bank of America CKG 9334 / Card 9273', createdAt:'2026-09-11T18:00:00.000Z' });
     const rows = [
@@ -861,10 +988,10 @@
     const accountId = financeEnsureOption('accounts','Adv Plus Banking - 7003');
     const category = name => financeEnsureOption('categories',name);
     const cat = {
-      income: category('Renda / Depósito'),
-      zelle: category('Zelle / Transferência'),
+      income: category('Trabalho / Salário'),
+      zelle: category('Ganhos extras / Bicos'),
       transfer: category('Transferência entre contas'),
-      cardPayment: category('Pagamento / Crédito'),
+      cardPayment: category('Pagamento de cartão'),
       cashback: category('Cashback / Recompensa'),
       rent: category('Aluguel / Moradia'),
       auto: category('Automóvel'),
@@ -1351,6 +1478,7 @@
     if (importFinanceChecking9334User1Screens()) changed = true;
     if (importFinanceChecking7003User1Screens()) changed = true;
     if (normalizeFinanceClassifications()) changed = true;
+    if (normalizeFinanceCategoryCatalog()) changed = true;
     if (importPaymentHistory()) changed = true;
     if (importAmazonFlexEarningsFromScreens()) changed = true;
     if (importAmazonFlexSecondAccountScreens()) changed = true;

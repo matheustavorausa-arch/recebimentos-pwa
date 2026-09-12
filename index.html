@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=71">
-  <link rel="stylesheet" href="css/betting-theme.css?v=71">
+  <link rel="stylesheet" href="css/styles.css?v=72">
+  <link rel="stylesheet" href="css/betting-theme.css?v=72">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -271,6 +271,9 @@
         <div id="financeAnalysisSummary" class="finance-analysis-summary"></div>
         <div class="section-heading compact"><h2>Gastos por categoria</h2></div>
         <div id="financeAnalysisCategories" class="finance-analysis-list"></div>
+        <div class="section-heading compact"><h2>Auditoria de categorias</h2><span id="financeAuditCount" class="count danger"></span></div>
+        <p class="helper-text">Possíveis lançamentos duplicados, transferências disfarçadas ou categorias que merecem revisão.</p>
+        <div id="financeAuditList" class="finance-audit-list"></div>
       </section>
 
       <section class="earnings-card finance-panel" data-finance-panel="accounts" hidden>
@@ -448,7 +451,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=71" defer></script>
-  <script src="js/app.js?v=71" defer></script>
+  <script src="js/payment-history-data.js?v=72" defer></script>
+  <script src="js/app.js?v=72" defer></script>
 </body>
 </html>
