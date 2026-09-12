@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 19;
+  const DATA_VERSION = 20;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
   const FINANCE_DEFAULT_CATEGORIES = ['Gasolina','Mercado','Restaurante','Aluguel / Moradia','Contas','Compras','Transporte','Automóvel','Lazer','Saúde','Pets','Criança / Família','Assinaturas','Outros'];
@@ -220,6 +220,23 @@
     const sign = item.type === 'income' ? '+' : '-';
     return `<article class="detail-item finance-transaction ${item.status === 'pending' ? 'pending-transaction' : ''}"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.description || item.merchant || 'Sem descrição')}</strong><span>${escapeHtml(type)} · ${escapeHtml(financeResponsibleLabel(item.responsible))} · ${escapeHtml(financeCategoryById(item.categoryId).name)} · ${escapeHtml(financeAccountById(item.accountId).name)}</span>${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}<small class="status-badge ${badge}">${status}</small></div><div class="finance-row-side"><strong>${sign}${dollars(item.amount)}</strong><div class="detail-actions"><button type="button" data-edit-finance="${item.id}">Editar</button>${item.status === 'pending' ? `<button type="button" data-post-finance="${item.id}">Confirmar</button>` : ''}<button class="delete" type="button" data-delete-finance="${item.id}">Excluir</button></div></div></article>`;
   }
+  function renderFinanceCards(records) {
+    if (!$('financeCardsList')) return;
+    const byAccount = {};
+    records.forEach(item => {
+      const account = financeAccountById(item.accountId);
+      byAccount[account.id] ||= { name:account.name, purchases:0, credits:0, pending:0, count:0 };
+      byAccount[account.id].count++;
+      if (item.status === 'pending') byAccount[account.id].pending += Number(item.amount || 0);
+      else if (item.type === 'income') byAccount[account.id].credits += Number(item.amount || 0);
+      else byAccount[account.id].purchases += Number(item.amount || 0);
+    });
+    const cards = Object.values(byAccount).sort((a,b) => (b.purchases + b.pending) - (a.purchases + a.pending));
+    $('financeCardsList').innerHTML = cards.length ? cards.map(card => {
+      const balance = card.purchases - card.credits;
+      return `<article class="finance-account-card"><div><span>Cartão / conta</span><strong>${escapeHtml(card.name)}</strong></div><div class="finance-account-numbers"><p><span>Compras</span><strong>${dollars(card.purchases)}</strong></p><p><span>Pagamentos/créditos</span><strong>${dollars(card.credits)}</strong></p><p><span>Pendentes</span><strong>${dollars(card.pending)}</strong></p><p><span>Saldo do período</span><strong>${dollars(balance)}</strong></p></div><small>${card.count} transação${card.count === 1 ? '' : 'ões'} no filtro atual</small></article>`;
+    }).join('') : empty('Nenhum cartão/conta com transações neste filtro.');
+  }
   function renderFinanceSettings() {
     if ($('financeCategoriesList')) $('financeCategoriesList').innerHTML = (state.finance?.categories || []).map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`).join('') || empty('Nenhuma categoria.');
     if ($('financeAccountsList')) $('financeAccountsList').innerHTML = (state.finance?.accounts || []).map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`).join('') || empty('Nenhuma conta/cartão.');
@@ -241,6 +258,10 @@
     if ($('financeCategoryBreakdown')) $('financeCategoryBreakdown').innerHTML = Object.entries(stats.expensesByCategory).length ? Object.entries(stats.expensesByCategory).sort((a,b) => b[1] - a[1]).map(([label,value]) => detailRow(label,dollars(value))).join('') : empty('Nenhuma despesa confirmada neste período.');
     if ($('financeResponsibleBreakdown')) $('financeResponsibleBreakdown').innerHTML = Object.entries(stats.byResponsible).length ? Object.entries(stats.byResponsible).map(([label,value]) => detailRow(label,`Entradas ${dollars(value.income)} · Despesas ${dollars(value.expense)} · Saldo ${dollars(value.income - value.expense)}`)).join('') : empty('Nenhuma transação confirmada neste período.');
     if ($('financeRecentTransactions')) $('financeRecentTransactions').innerHTML = stats.records.slice(0,6).length ? stats.records.slice(0,6).map(financeTransactionRow).join('') : empty('Nenhuma transação cadastrada ainda.');
+    renderFinanceCards(stats.records);
+    const purchases = stats.records.filter(item => item.type === 'expense');
+    if ($('financePurchasesCount')) $('financePurchasesCount').textContent = String(purchases.length || '');
+    if ($('financePurchasesList')) $('financePurchasesList').innerHTML = purchases.length ? purchases.map(financeTransactionRow).join('') : empty('Nenhuma compra/despesa encontrada.');
     if ($('financeTransactionsCount')) $('financeTransactionsCount').textContent = String(stats.records.length || '');
     if ($('financeTransactionsList')) $('financeTransactionsList').innerHTML = stats.records.length ? stats.records.map(financeTransactionRow).join('') : empty('Nenhuma transação encontrada.');
     if ($('financePendingCount')) $('financePendingCount').textContent = String(stats.pending.length || '');
@@ -374,6 +395,99 @@
       const id = `fin-${slugify(externalFingerprint)}`;
       if (existing.has(id) || existing.has(externalFingerprint)) return;
       state.finance.transactions.push({ id, date, description, merchant:description, amount, type, responsible:'user1', categoryId, accountId, status, subtype, notes, importBatchId:batchId, externalFingerprint, createdAt:'2026-09-11T16:00:00.000Z', updatedAt:'2026-09-11T16:00:00.000Z' });
+      existing.add(id); existing.add(externalFingerprint); changed = true;
+    });
+    return changed;
+  }
+  function importFinanceUnlimited0034User1Screens() {
+    ensureFinanceState();
+    const batchId = 'batch-bofa-unlimited-0034-user1-2026-07-09-screens-001';
+    const accountId = financeEnsureOption('accounts','Unlimited Cash Rewards Visa Signature - 0034');
+    const category = name => financeEnsureOption('categories',name);
+    const cat = {
+      gas: category('Gasolina'),
+      market: category('Mercado'),
+      auto: category('Automóvel'),
+      shopping: category('Compras'),
+      credit: category('Pagamento / Crédito'),
+      restaurant: category('Restaurante'),
+      transport: category('Transporte'),
+      pets: category('Pets'),
+      health: category('Saúde'),
+      leisure: category('Lazer')
+    };
+    if (!state.finance.importBatches.some(batch => batch.id === batchId)) state.finance.importBatches.push({ id:batchId, source:'codex-screenshots', notes:'Cartão de crédito Usuário 1 - Unlimited Cash Rewards Visa Signature - 0034', createdAt:'2026-09-11T17:00:00.000Z' });
+    const rows = [
+      ['2026-07-03','GEICO *AUTO 800-841-3000 DC',216.35,'expense',cat.auto,'posted','regular','Foto 1'],
+      ['2026-07-06',"DOMINO'S 8352 310-316-8199 CA",12.12,'expense',cat.restaurant,'posted','regular','Foto 1'],
+      ['2026-07-20','SQ *PYRAMID LAKE Ontario CA',15.00,'expense',cat.leisure,'posted','regular','Foto 1'],
+      ['2026-07-21','OLIVE GARDEN EC 0021723 407-245-5589 CA',50.25,'expense',cat.restaurant,'posted','regular','Foto 1'],
+      ['2026-07-22','csgo-skins Gibraltar',10.00,'expense',cat.shopping,'posted','regular','Foto 1'],
+      ['2026-07-24','PAYMENT FROM CHK 9334 CONF#z1yjlra0',625.22,'income',cat.credit,'posted','transfer','Foto 1 - pagamento do cartão'],
+      ['2026-07-27','SPOT PET SPOTPET.COM IL',124.54,'expense',cat.pets,'posted','regular','Foto 2'],
+      ['2026-07-27','TEMU.COM 888-495-8368 MA',3.10,'expense',cat.shopping,'posted','regular','Foto 2'],
+      ['2026-07-30','csgo-skins Gibraltar',5.00,'expense',cat.shopping,'posted','regular','Foto 2'],
+      ['2026-08-03','TST*OCTOPUS JAPANESE RES Burbank CA',81.58,'expense',cat.restaurant,'posted','regular','Foto 2'],
+      ['2026-08-03','DN SUPER FUEL TORRANCE CA',28.92,'expense',cat.gas,'posted','regular','Foto 2'],
+      ['2026-08-03','THE ROCK INN LAKE HUGHES CA',25.24,'expense',cat.restaurant,'posted','regular','Foto 2'],
+      ['2026-08-03','GEICO *AUTO 800-841-3000 DC',216.35,'expense',cat.auto,'posted','regular','Foto 2'],
+      ['2026-08-04','OLIVE GARDEN ZK 0021723 MANHATTAN BEACA',70.65,'expense',cat.restaurant,'posted','regular','Foto 2'],
+      ['2026-08-06','aliexpress 408-7855580 DE',12.46,'expense',cat.shopping,'posted','regular','Foto 2'],
+      ['2026-08-11','LAWNDALE CAR WASH LAWNDALE CA',1.50,'expense',cat.auto,'posted','regular','Foto 3 - repetição 1'],
+      ['2026-08-11','LAWNDALE CAR WASH LAWNDALE CA',1.50,'expense',cat.auto,'posted','regular','Foto 3 - repetição 2'],
+      ['2026-08-11','LAWNDALE CAR WASH LAWNDALE CA',1.50,'expense',cat.auto,'posted','regular','Foto 3 - repetição 3'],
+      ['2026-08-11','LAWNDALE CAR WASH LAWNDALE CA',1.50,'expense',cat.auto,'posted','regular','Foto 3 - repetição 4'],
+      ['2026-08-11','LAWNDALE CAR WASH LAWNDALE CA',1.50,'expense',cat.auto,'posted','regular','Foto 2 - repetição 5'],
+      ['2026-08-11','LAWNDALE CAR WASH LAWNDALE CA',21.00,'expense',cat.auto,'posted','regular','Foto 3'],
+      ['2026-08-11','RALPHS #0081 WOODLAND HILLCA',17.09,'expense',cat.market,'posted','regular','Foto 3'],
+      ['2026-08-14','CVS/PHARMACY #09478 TORRANCE CA',7.71,'expense',cat.health,'posted','regular','Foto 3'],
+      ['2026-08-17','CHEVRON 0098574 CANYON COUNTRCA',19.38,'expense',cat.gas,'posted','regular','Foto 3'],
+      ['2026-08-18','TST*JACKS PLACE Leona Valley CA',36.00,'expense',cat.restaurant,'posted','regular','Foto 3'],
+      ['2026-08-18',"BJ'S RESTAURANTS MOBILE 714-500-2400 CA",130.08,'expense',cat.restaurant,'posted','regular','Foto 3'],
+      ['2026-08-20','PAYMENT FROM CHK 7003 CONF#zfanssrex',303.72,'income',cat.credit,'posted','transfer','Foto 6 - pagamento do cartão'],
+      ['2026-08-21','OLIVE GARDEN ZK 0021563 SANTA CLARITACA',64.11,'expense',cat.restaurant,'posted','regular','Foto 6'],
+      ['2026-08-21','COSTCO WHSE #0424 SIGNAL HILL CA',10.48,'expense',cat.market,'posted','regular','Foto 6'],
+      ['2026-08-22','CHEVRON 0098744 WEST HOLLYWOODCA',5.01,'expense',cat.gas,'posted','regular','Foto 6'],
+      ['2026-08-24','TST*TACOS EL GAVILAN - L LOS ANGELES CA',16.77,'expense',cat.restaurant,'posted','regular','Foto 6'],
+      ['2026-08-25','MR PIZZA MAN 650-9973964 CA',57.56,'expense',cat.restaurant,'posted','regular','Foto 6'],
+      ['2026-08-25','SPOTHERO 844-356-8054 SPOTHERO.COM IL',18.55,'expense',cat.transport,'posted','regular','Foto 6'],
+      ['2026-08-25','SPOTHERO 844-356-8054 SPOTHERO.COM IL',2.65,'expense',cat.transport,'posted','regular','Foto 6'],
+      ['2026-08-25','OLIVE GARDEN ZK 0021404 SANTA MARIA CA',47.80,'expense',cat.restaurant,'posted','regular','Foto 6'],
+      ['2026-08-25','WAYMO 844-261-3753 CA',12.14,'expense',cat.transport,'posted','regular','Foto 6'],
+      ['2026-08-25','TST*PADOCA CAFE San FranciscoCA',7.80,'expense',cat.restaurant,'posted','regular','Foto 5'],
+      ['2026-08-25','TST*PADOCA CAFE San FranciscoCA',29.92,'expense',cat.restaurant,'posted','regular','Foto 5'],
+      ['2026-08-25','GOLDEN GATE NRA PARKING SAN FRANCISCOCA',4.00,'expense',cat.transport,'posted','regular','Foto 5'],
+      ['2026-08-25','MAGNETS PIER 39 SAN FRANCISCOCA',5.43,'expense',cat.shopping,'posted','regular','Foto 5'],
+      ['2026-08-26','FOGO DE CHAO - SAN FRANC SAN FRANCISCOCA',13.30,'expense',cat.restaurant,'posted','regular','Foto 5'],
+      ['2026-08-26','TST* EQUATOR COFFEES - ROSAN RAFAEL CA',12.00,'expense',cat.restaurant,'posted','regular','Foto 5'],
+      ['2026-08-26','SPOTHERO 844-356-8054 SPOTHERO.COM IL',30.21,'expense',cat.transport,'posted','regular','Foto 5'],
+      ['2026-08-26','TST*CIOPPINOS ON THE WH San FranciscoCA',65.30,'expense',cat.restaurant,'posted','regular','Foto 5'],
+      ['2026-08-26','TST*PADOCA CAFE San FranciscoCA',34.67,'expense',cat.restaurant,'posted','regular','Foto 5'],
+      ['2026-08-26','WAGO SUSHI SAN FRANCISCOCA',75.70,'expense',cat.restaurant,'posted','regular','Foto 5'],
+      ['2026-08-27','IMPARK00270161A SAN FRANCISCOCA',10.00,'expense',cat.transport,'posted','regular','Foto 4'],
+      ['2026-08-27','CLIPPER TRANSIT FARE SAN FRANCISCOCA',8.50,'expense',cat.transport,'posted','regular','Foto 4 - repetição 1'],
+      ['2026-08-27','CLIPPER TRANSIT FARE SAN FRANCISCOCA',8.50,'expense',cat.transport,'posted','regular','Foto 4 - repetição 2'],
+      ['2026-08-27','TST*PADOCA CAFE San FranciscoCA',58.52,'expense',cat.restaurant,'posted','regular','Foto 4'],
+      ['2026-08-28','TARGET T-3452 SOUTH LAKE TACA',21.74,'expense',cat.shopping,'posted','regular','Foto 7'],
+      ['2026-08-28','SAFEWAY #1824 SOUTH LAKE TACA',159.41,'expense',cat.market,'posted','regular','Foto 4'],
+      ['2026-08-28','SOUTH LAKE TAHOE ACE HAR SOUTH LAKE TACA',11.95,'expense',cat.shopping,'posted','regular','Foto 4'],
+      ['2026-08-29','APPLEBEES 2160023 S LAKE TAHOE CA',79.77,'expense',cat.restaurant,'posted','regular','Foto 7'],
+      ['2026-08-31',"TST* FRANNY'S FARM TABLE 530-748-3671 CA",72.11,'expense',cat.restaurant,'posted','regular','Foto 7'],
+      ['2026-08-31','COSTCO GAS #1202 TORRANCE CA',7.99,'expense',cat.gas,'posted','regular','Foto 7'],
+      ['2026-08-31','COSTCO GAS #1202 TORRANCE CA',50.85,'expense',cat.gas,'posted','regular','Foto 7'],
+      ['2026-09-03','GEICO *AUTO 800-841-3000 DC',216.35,'expense',cat.auto,'posted','regular','Foto 7'],
+      ['2026-09-03','TARGET T-0183 PACOIMA CA',9.53,'expense',cat.shopping,'posted','regular','Foto 7'],
+      ['2026-09-08','OLIVE GARDEN ZK 0021723 MANHATTAN BEACA',54.58,'expense',cat.restaurant,'posted','regular','Foto 7'],
+      ['2026-09-11','SPOT PET',124.54,'expense',cat.pets,'pending','regular','Foto 7 - pendente; data não aparece no print, usei a data atual do lote']
+    ];
+    const existing = new Set((state.finance.transactions || []).flatMap(item => [item.id, item.externalFingerprint].filter(Boolean)));
+    let changed = false;
+    rows.forEach(([date,description,amount,type,categoryId,status,subtype,notes], index) => {
+      const repeatKey = /repetição/i.test(notes || '') ? `|${index}` : '';
+      const externalFingerprint = `bofa-0034|${date}|${description}|${amount.toFixed(2)}|${status}${repeatKey}`;
+      const id = `fin-${slugify(externalFingerprint)}`;
+      if (existing.has(id) || existing.has(externalFingerprint)) return;
+      state.finance.transactions.push({ id, date, description, merchant:description, amount, type, responsible:'user1', categoryId, accountId, status, subtype, notes, importBatchId:batchId, externalFingerprint, createdAt:'2026-09-11T17:00:00.000Z', updatedAt:'2026-09-11T17:00:00.000Z' });
       existing.add(id); existing.add(externalFingerprint); changed = true;
     });
     return changed;
@@ -775,6 +889,7 @@
     state.auth = { ...(state.auth || {}) };
     if (ensureFinanceState()) changed = true;
     if (importFinanceTravelRewards5903User1Screens()) changed = true;
+    if (importFinanceUnlimited0034User1Screens()) changed = true;
     if (importPaymentHistory()) changed = true;
     if (importAmazonFlexEarningsFromScreens()) changed = true;
     if (importAmazonFlexSecondAccountScreens()) changed = true;

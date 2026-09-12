@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=61">
-  <link rel="stylesheet" href="css/betting-theme.css?v=61">
+  <link rel="stylesheet" href="css/styles.css?v=62">
+  <link rel="stylesheet" href="css/betting-theme.css?v=62">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -238,6 +238,8 @@
 
       <nav class="earnings-tabs finance-tabs" aria-label="Abas de finanças">
         <button class="active" type="button" data-finance-tab="overview">Visão geral</button>
+        <button type="button" data-finance-tab="cards">Cartões</button>
+        <button type="button" data-finance-tab="purchases">Compras</button>
         <button type="button" data-finance-tab="transactions">Transações</button>
         <button type="button" data-finance-tab="pending">Pendentes</button>
         <button type="button" data-finance-tab="settings">Categorias</button>
@@ -253,6 +255,18 @@
         <div id="financeResponsibleBreakdown" class="detail-list compact-list"></div>
         <div class="section-heading compact"><h2>Transações recentes</h2></div>
         <div id="financeRecentTransactions" class="detail-list"></div>
+      </section>
+
+      <section class="earnings-card finance-panel" data-finance-panel="cards" hidden>
+        <div class="section-heading"><h2>Cartões e contas</h2></div>
+        <p class="helper-text">Veja cada cartão/conta separadamente, com compras, pagamentos/créditos e pendentes do período selecionado.</p>
+        <div id="financeCardsList" class="finance-card-grid"></div>
+      </section>
+
+      <section class="earnings-card finance-panel" data-finance-panel="purchases" hidden>
+        <div class="section-heading"><h2>Compras</h2><span id="financePurchasesCount" class="count"></span></div>
+        <p class="helper-text">Somente despesas/compras. Pagamentos e créditos ficam fora desta lista.</p>
+        <div id="financePurchasesList" class="detail-list"></div>
       </section>
 
       <section class="earnings-card finance-panel" data-finance-panel="transactions" hidden>
@@ -399,7 +413,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=61" defer></script>
-  <script src="js/app.js?v=61" defer></script>
+  <script src="js/payment-history-data.js?v=62" defer></script>
+  <script src="js/app.js?v=62" defer></script>
 </body>
 </html>
