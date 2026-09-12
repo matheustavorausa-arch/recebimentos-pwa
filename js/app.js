@@ -2,9 +2,12 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 17;
+  const DATA_VERSION = 19;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
+  const FINANCE_DEFAULT_CATEGORIES = ['Gasolina','Mercado','Restaurante','Aluguel / Moradia','Contas','Compras','Transporte','Automóvel','Lazer','Saúde','Pets','Criança / Família','Assinaturas','Outros'];
+  const FINANCE_DEFAULT_ACCOUNTS = ['Checking','Savings','Credit Card 1','Credit Card 2'];
+  const FINANCE_RESPONSIBLES = { user1:'Usuário 1', user2:'Usuário 2', shared:'Compartilhado' };
   const DAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
   const CLIENT_ALIASES = {
     PEDAMZ: ['PED AMZ','PEDRO AMZ','PEDDRO AMZ','PEDRO'],
@@ -21,15 +24,16 @@
   let pushSyncTimer;
   let renderedDay = '';
   let payerSearchTerm = '';
+  let financeFilter = { responsible:'all', period:'month' };
 
   function loadState() {
     try {
       return {
-        payers: [], payments: {}, paymentHistory: [], earnings: [], earningsSettings: { weeklyGoal: 0, dailyGoal: 250 }, auth: {}, settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' },
+        payers: [], payments: {}, paymentHistory: [], earnings: [], earningsSettings: { weeklyGoal: 0, dailyGoal: 250 }, finance: defaultFinanceState(), auth: {}, settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' },
         ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
       };
     } catch {
-      return { payers: [], payments: {}, paymentHistory: [], earnings: [], earningsSettings: { weeklyGoal: 0, dailyGoal: 250 }, auth: {}, settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' } };
+      return { payers: [], payments: {}, paymentHistory: [], earnings: [], earningsSettings: { weeklyGoal: 0, dailyGoal: 250 }, finance: defaultFinanceState(), auth: {}, settings: { notifications: false, pushSubscribed: false, lastNotificationDate: '' } };
     }
   }
 
@@ -61,7 +65,18 @@
     (incoming.paymentHistory || []).forEach(record => historyMap.set(record.id, record));
     const earningMap = new Map((state.earnings || []).map(record => [record.id, record]));
     (incoming.earnings || []).forEach(record => earningMap.set(record.id, record));
-    state = { ...state, ...incoming, payers: [...payerMap.values()], payments, paymentHistory: [...historyMap.values()], earnings: [...earningMap.values()], earningsSettings: { ...(state.earningsSettings || {}), ...(incoming.earningsSettings || {}) }, auth: { ...(state.auth || {}), ...(incoming.auth || {}) }, settings: { ...(state.settings || {}), ...(incoming.settings || {}) } };
+    const currentFinance = state.finance || defaultFinanceState();
+    const incomingFinance = incoming.finance || {};
+    const financeTransactions = new Map((currentFinance.transactions || []).map(record => [record.id, record]));
+    (incomingFinance.transactions || []).forEach(record => financeTransactions.set(record.id, record));
+    const financeCategories = new Map((currentFinance.categories || []).map(record => [record.id, record]));
+    (incomingFinance.categories || []).forEach(record => financeCategories.set(record.id, { ...(financeCategories.get(record.id) || {}), ...record }));
+    const financeAccounts = new Map((currentFinance.accounts || []).map(record => [record.id, record]));
+    (incomingFinance.accounts || []).forEach(record => financeAccounts.set(record.id, { ...(financeAccounts.get(record.id) || {}), ...record }));
+    const financeBatches = new Map((currentFinance.importBatches || []).map(record => [record.id, record]));
+    (incomingFinance.importBatches || []).forEach(record => financeBatches.set(record.id, record));
+    const finance = { ...currentFinance, ...incomingFinance, transactions:[...financeTransactions.values()], categories:[...financeCategories.values()], accounts:[...financeAccounts.values()], importBatches:[...financeBatches.values()], settings:{ ...(currentFinance.settings || {}), ...(incomingFinance.settings || {}) } };
+    state = { ...state, ...incoming, payers: [...payerMap.values()], payments, paymentHistory: [...historyMap.values()], earnings: [...earningMap.values()], finance, earningsSettings: { ...(state.earningsSettings || {}), ...(incoming.earningsSettings || {}) }, auth: { ...(state.auth || {}), ...(incoming.auth || {}) }, settings: { ...(state.settings || {}), ...(incoming.settings || {}) } };
   }
   async function importBackup(file) {
     if (!file) return;
@@ -86,6 +101,7 @@
   function dollars(value) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value) || 0); }
   function parseMoney(value) { return Number(String(value).trim().replace(/\s/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.')); }
   function escapeHtml(value = '') { return String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c])); }
+  function slugify(value = '') { return String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || `item-${uid()}`; }
   function formatShort(date) { return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(date); }
   function formatFull(date) { return new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).format(date); }
   function formatDate(value) { const date = parseLocalDate(value); return date ? new Intl.DateTimeFormat('pt-BR').format(date) : 'Nenhum registrado'; }
@@ -114,17 +130,267 @@
     const label = mode === 'auto' ? `Automático (${currentTheme() === 'dark' ? 'escuro' : 'claro'} agora)` : (mode === 'dark' ? 'Escuro' : 'Claro');
     showToast(`Tema: ${label}.`);
   }
+  function defaultFinanceState() {
+    const now = new Date().toISOString();
+    return {
+      transactions: [],
+      categories: FINANCE_DEFAULT_CATEGORIES.map(name => ({ id: slugify(name), name, archived:false, createdAt:now, updatedAt:now })),
+      accounts: FINANCE_DEFAULT_ACCOUNTS.map(name => ({ id: slugify(name), name, archived:false, createdAt:now, updatedAt:now })),
+      importBatches: [],
+      settings: { user1Label:'Usuário 1', user2Label:'Usuário 2' }
+    };
+  }
+  function ensureFinanceState() {
+    let changed = false;
+    const defaults = defaultFinanceState();
+    if (!state.finance || typeof state.finance !== 'object') { state.finance = defaults; return true; }
+    ['transactions','categories','accounts','importBatches'].forEach(key => { if (!Array.isArray(state.finance[key])) { state.finance[key] = defaults[key]; changed = true; } });
+    state.finance.settings = { ...defaults.settings, ...(state.finance.settings || {}) };
+    const addMissing = (key, items) => {
+      const current = new Set((state.finance[key] || []).map(item => item.id));
+      items.forEach(item => { if (!current.has(item.id)) { state.finance[key].push(item); changed = true; } });
+    };
+    addMissing('categories', defaults.categories);
+    addMissing('accounts', defaults.accounts);
+    state.finance.transactions.forEach(item => {
+      if (!item.id) { item.id = uid(); changed = true; }
+      if (!item.date) { item.date = localDate(); changed = true; }
+      if (!['income','expense'].includes(item.type)) { item.type = 'expense'; changed = true; }
+      item.amount = Math.abs(Number(item.amount) || 0);
+      if (!['user1','user2','shared'].includes(item.responsible)) { item.responsible = 'user1'; changed = true; }
+      if (!['pending','posted'].includes(item.status)) { item.status = 'posted'; changed = true; }
+      if (!item.categoryId) { item.categoryId = state.finance.categories[0]?.id || 'outros'; changed = true; }
+      if (!item.accountId) { item.accountId = state.finance.accounts[0]?.id || 'checking'; changed = true; }
+      if (!item.createdAt) { item.createdAt = item.updatedAt || new Date().toISOString(); changed = true; }
+      if (!item.updatedAt) { item.updatedAt = item.createdAt; changed = true; }
+      if (!item.subtype) { item.subtype = item.type === 'income' ? 'income' : 'regular'; changed = true; }
+    });
+    return changed;
+  }
+  function financeResponsibleLabel(value) { return state.finance?.settings?.[`${value}Label`] || FINANCE_RESPONSIBLES[value] || value || 'Todos'; }
+  function financeCategoryById(id) { return (state.finance?.categories || []).find(item => item.id === id) || { id, name:'Outros' }; }
+  function financeAccountById(id) { return (state.finance?.accounts || []).find(item => item.id === id) || { id, name:'Sem conta' }; }
+  function financePeriodRange(period = financeFilter.period) {
+    const today = new Date();
+    if (period === 'week') { const start = startOfWeek(today); const end = new Date(start); end.setDate(start.getDate() + 7); return { start:localDate(start), end:localDate(end), label:`Semana de ${formatShort(start)}` }; }
+    if (period === 'all') return { start:'0000-01-01', end:'9999-12-31', label:'Todos os períodos' };
+    const start = new Date(today.getFullYear(), today.getMonth(), 1); const end = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    return { start:localDate(start), end:localDate(end), label:new Intl.DateTimeFormat('pt-BR',{ month:'long', year:'numeric' }).format(today) };
+  }
+  function financeFilteredTransactions(includeAllStatuses = true) {
+    const range = financePeriodRange();
+    return (state.finance?.transactions || []).filter(item => {
+      if (financeFilter.responsible !== 'all' && item.responsible !== financeFilter.responsible) return false;
+      if (item.date < range.start || item.date >= range.end) return false;
+      return includeAllStatuses || item.status === 'posted';
+    }).sort((a,b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }
+  function financeStats() {
+    const records = financeFilteredTransactions(true);
+    const posted = records.filter(item => item.status === 'posted');
+    const pending = records.filter(item => item.status === 'pending');
+    const sum = (items, type) => items.filter(item => item.type === type).reduce((total, item) => total + Number(item.amount || 0), 0);
+    const expensesByCategory = {};
+    const byResponsible = {};
+    posted.filter(item => item.type === 'expense').forEach(item => {
+      const category = financeCategoryById(item.categoryId).name;
+      expensesByCategory[category] = (expensesByCategory[category] || 0) + Number(item.amount || 0);
+    });
+    posted.forEach(item => {
+      const label = financeResponsibleLabel(item.responsible);
+      byResponsible[label] ||= { income:0, expense:0 };
+      byResponsible[label][item.type] += Number(item.amount || 0);
+    });
+    return { records, posted, pending, income:sum(posted,'income'), expense:sum(posted,'expense'), pendingIncome:sum(pending,'income'), pendingExpense:sum(pending,'expense'), expensesByCategory, byResponsible };
+  }
+  function setFinancePanel(panel = 'overview') {
+    document.querySelectorAll('[data-finance-tab]').forEach(button => button.classList.toggle('active', button.dataset.financeTab === panel));
+    document.querySelectorAll('[data-finance-panel]').forEach(section => { section.hidden = section.dataset.financePanel !== panel; });
+  }
+  function populateFinanceSelects() {
+    const categoryOptions = (state.finance?.categories || []).filter(item => !item.archived).map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
+    const accountOptions = (state.finance?.accounts || []).filter(item => !item.archived).map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
+    if ($('financeCategory')) $('financeCategory').innerHTML = categoryOptions;
+    if ($('financeAccount')) $('financeAccount').innerHTML = accountOptions;
+  }
+  function financeTransactionRow(item) {
+    const status = item.status === 'pending' ? 'Pendente' : 'Confirmada';
+    const type = item.type === 'income' ? 'Entrada' : 'Despesa';
+    const badge = item.status === 'pending' ? 'status-unpaid' : (item.type === 'income' ? 'status-paid' : 'status-partial');
+    const sign = item.type === 'income' ? '+' : '-';
+    return `<article class="detail-item finance-transaction ${item.status === 'pending' ? 'pending-transaction' : ''}"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.description || item.merchant || 'Sem descrição')}</strong><span>${escapeHtml(type)} · ${escapeHtml(financeResponsibleLabel(item.responsible))} · ${escapeHtml(financeCategoryById(item.categoryId).name)} · ${escapeHtml(financeAccountById(item.accountId).name)}</span>${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}<small class="status-badge ${badge}">${status}</small></div><div class="finance-row-side"><strong>${sign}${dollars(item.amount)}</strong><div class="detail-actions"><button type="button" data-edit-finance="${item.id}">Editar</button>${item.status === 'pending' ? `<button type="button" data-post-finance="${item.id}">Confirmar</button>` : ''}<button class="delete" type="button" data-delete-finance="${item.id}">Excluir</button></div></div></article>`;
+  }
+  function renderFinanceSettings() {
+    if ($('financeCategoriesList')) $('financeCategoriesList').innerHTML = (state.finance?.categories || []).map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`).join('') || empty('Nenhuma categoria.');
+    if ($('financeAccountsList')) $('financeAccountsList').innerHTML = (state.finance?.accounts || []).map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`).join('') || empty('Nenhuma conta/cartão.');
+  }
+  function renderFinance() {
+    ensureFinanceState(); populateFinanceSelects();
+    if ($('financeDate')) $('financeDate').value ||= localDate();
+    if ($('financeResponsibleFilter')) $('financeResponsibleFilter').value = financeFilter.responsible;
+    if ($('financePeriodFilter')) $('financePeriodFilter').value = financeFilter.period;
+    const range = financePeriodRange(); if ($('financePeriodLabel')) $('financePeriodLabel').textContent = range.label;
+    const stats = financeStats();
+    if ($('financeIncomeTotal')) $('financeIncomeTotal').textContent = dollars(stats.income);
+    if ($('financeExpenseTotal')) $('financeExpenseTotal').textContent = dollars(stats.expense);
+    if ($('financeBalanceTotal')) $('financeBalanceTotal').textContent = dollars(stats.income - stats.expense);
+    if ($('financeIncomePending')) $('financeIncomePending').textContent = `Pendentes ${dollars(stats.pendingIncome)}`;
+    if ($('financeExpensePending')) $('financeExpensePending').textContent = `Pendentes ${dollars(stats.pendingExpense)}`;
+    if ($('financePendingTotal')) $('financePendingTotal').textContent = `${stats.pending.length} pendente(s) separados`;
+    if ($('financeOverviewReports')) $('financeOverviewReports').innerHTML = [['Entradas confirmadas', dollars(stats.income)], ['Despesas confirmadas', dollars(stats.expense)], ['Saldo do período', dollars(stats.income - stats.expense)], ['Pendentes', `Entradas ${dollars(stats.pendingIncome)} · Despesas ${dollars(stats.pendingExpense)}`]].map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+    if ($('financeCategoryBreakdown')) $('financeCategoryBreakdown').innerHTML = Object.entries(stats.expensesByCategory).length ? Object.entries(stats.expensesByCategory).sort((a,b) => b[1] - a[1]).map(([label,value]) => detailRow(label,dollars(value))).join('') : empty('Nenhuma despesa confirmada neste período.');
+    if ($('financeResponsibleBreakdown')) $('financeResponsibleBreakdown').innerHTML = Object.entries(stats.byResponsible).length ? Object.entries(stats.byResponsible).map(([label,value]) => detailRow(label,`Entradas ${dollars(value.income)} · Despesas ${dollars(value.expense)} · Saldo ${dollars(value.income - value.expense)}`)).join('') : empty('Nenhuma transação confirmada neste período.');
+    if ($('financeRecentTransactions')) $('financeRecentTransactions').innerHTML = stats.records.slice(0,6).length ? stats.records.slice(0,6).map(financeTransactionRow).join('') : empty('Nenhuma transação cadastrada ainda.');
+    if ($('financeTransactionsCount')) $('financeTransactionsCount').textContent = String(stats.records.length || '');
+    if ($('financeTransactionsList')) $('financeTransactionsList').innerHTML = stats.records.length ? stats.records.map(financeTransactionRow).join('') : empty('Nenhuma transação encontrada.');
+    if ($('financePendingCount')) $('financePendingCount').textContent = String(stats.pending.length || '');
+    if ($('financePendingList')) $('financePendingList').innerHTML = stats.pending.length ? stats.pending.map(financeTransactionRow).join('') : empty('Nenhuma transação pendente.');
+    renderFinanceSettings();
+  }
+  function resetFinanceForm() {
+    if (!$('financeTransactionForm')) return;
+    $('financeTransactionId').value = ''; $('financeFormTitle').textContent = 'Adicionar transação'; $('financeDate').value = localDate(); $('financeType').value = 'expense'; $('financeDescription').value = ''; $('financeAmount').value = ''; $('financeResponsible').value = 'user1'; $('financeStatus').value = 'posted'; $('financeSubtype').value = 'regular'; $('financeNotes').value = ''; populateFinanceSelects(); $('financeSubmitBtn').textContent = 'Salvar transação';
+  }
+  function editFinanceTransaction(id) {
+    const item = state.finance?.transactions?.find(record => record.id === id); if (!item) return;
+    setFinancePanel('add'); populateFinanceSelects();
+    $('financeTransactionId').value = item.id; $('financeFormTitle').textContent = 'Editar transação'; $('financeDate').value = item.date || localDate(); $('financeType').value = item.type || 'expense'; $('financeDescription').value = item.description || item.merchant || ''; $('financeAmount').value = Number(item.amount || 0).toFixed(2).replace('.', ','); $('financeResponsible').value = item.responsible || 'user1'; $('financeCategory').value = item.categoryId || state.finance.categories[0]?.id || ''; $('financeAccount').value = item.accountId || state.finance.accounts[0]?.id || ''; $('financeStatus').value = item.status || 'posted'; $('financeSubtype').value = item.subtype || (item.type === 'income' ? 'income' : 'regular'); $('financeNotes').value = item.notes || ''; $('financeSubmitBtn').textContent = 'Salvar alteração'; $('financeTransactionForm').scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+  function saveFinanceTransaction(event) {
+    event.preventDefault(); ensureFinanceState();
+    const amount = parseMoney($('financeAmount').value); if (!Number.isFinite(amount) || amount <= 0) { showToast('Informe um valor válido.'); return; }
+    const id = $('financeTransactionId').value; const now = new Date().toISOString();
+    const payload = { date:$('financeDate').value || localDate(), description:$('financeDescription').value.trim(), merchant:$('financeDescription').value.trim(), amount, type:$('financeType').value, responsible:$('financeResponsible').value, categoryId:$('financeCategory').value, accountId:$('financeAccount').value, status:$('financeStatus').value, subtype:$('financeSubtype').value || 'regular', notes:$('financeNotes').value.trim(), updatedAt:now };
+    if (!payload.description) { showToast('Informe a descrição.'); return; }
+    if (id) { const existing = state.finance.transactions.find(item => item.id === id); if (!existing) { showToast('Transação não encontrada.'); return; } Object.assign(existing, payload); }
+    else state.finance.transactions.push({ ...payload, id:uid(), createdAt:now, importBatchId:'manual' });
+    resetFinanceForm(); saveState(); renderFinance(); setFinancePanel('transactions'); showToast(id ? 'Transação atualizada.' : 'Transação salva.');
+  }
+  function deleteFinanceTransaction(id) {
+    const item = state.finance?.transactions?.find(record => record.id === id);
+    if (!item || !confirm(`Excluir ${item.description || 'esta transação'} no valor de ${dollars(item.amount)}?`)) return;
+    state.finance.transactions = state.finance.transactions.filter(record => record.id !== id);
+    saveState(); renderFinance(); showToast('Transação excluída.');
+  }
+  function markFinancePosted(id) { const item = state.finance?.transactions?.find(record => record.id === id); if (!item) return; item.status = 'posted'; item.updatedAt = new Date().toISOString(); saveState(); renderFinance(); showToast('Transação confirmada.'); }
+  function saveFinanceCategory(event) {
+    event.preventDefault(); const name = $('financeCategoryName').value.trim(); if (!name) return; ensureFinanceState();
+    const id = slugify(name); if (!state.finance.categories.some(item => item.id === id)) state.finance.categories.push({ id, name, archived:false, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() });
+    $('financeCategoryName').value = ''; saveState(); renderFinance(); showToast('Categoria adicionada.');
+  }
+  function saveFinanceAccount(event) {
+    event.preventDefault(); const name = $('financeAccountName').value.trim(); if (!name) return; ensureFinanceState();
+    const id = slugify(name); if (!state.finance.accounts.some(item => item.id === id)) state.finance.accounts.push({ id, name, archived:false, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() });
+    $('financeAccountName').value = ''; saveState(); renderFinance(); showToast('Conta/cartão adicionado.');
+  }
+  function createFinanceImportBatch(source = 'codex', notes = '') { ensureFinanceState(); const batch = { id:`batch-${uid()}`, source, notes, createdAt:new Date().toISOString() }; state.finance.importBatches.push(batch); return batch; }
+  function importFinanceTransactions(records = [], options = {}) {
+    const batch = createFinanceImportBatch(options.source || 'codex-screenshot', options.notes || '');
+    records.forEach(record => {
+      const now = new Date().toISOString();
+      state.finance.transactions.push({ id:record.id || uid(), date:record.date || localDate(), description:record.description || record.merchant || 'Importado', merchant:record.merchant || record.description || 'Importado', amount:Math.abs(Number(record.amount) || 0), type:['income','expense'].includes(record.type) ? record.type : 'expense', responsible:['user1','user2','shared'].includes(record.responsible) ? record.responsible : 'user1', categoryId:record.categoryId || state.finance.categories.find(item => item.name === record.category)?.id || 'outros', accountId:record.accountId || state.finance.accounts.find(item => item.name === record.account)?.id || state.finance.accounts[0]?.id || 'checking', status:['pending','posted'].includes(record.status) ? record.status : 'posted', subtype:record.subtype || 'regular', notes:record.notes || '', importBatchId:batch.id, externalFingerprint:record.externalFingerprint || '', createdAt:now, updatedAt:now });
+    });
+    return batch;
+  }
+  function financeEnsureOption(collection, name) {
+    ensureFinanceState();
+    const list = state.finance[collection];
+    const found = list.find(item => item.name.toLowerCase() === name.toLowerCase());
+    if (found) return found.id;
+    const id = slugify(name);
+    list.push({ id, name, archived:false, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() });
+    return id;
+  }
+  function importFinanceTravelRewards5903User1Screens() {
+    ensureFinanceState();
+    const batchId = 'batch-bofa-travel-5903-user1-2026-06-09-screens-001';
+    const accountId = financeEnsureOption('accounts','Travel Rewards Visa Signature - 5903');
+    const category = name => financeEnsureOption('categories',name);
+    const cat = {
+      gas: category('Gasolina'),
+      market: category('Mercado'),
+      auto: category('Automóvel'),
+      shopping: category('Compras'),
+      credit: category('Pagamento / Crédito')
+    };
+    if (!state.finance.importBatches.some(batch => batch.id === batchId)) state.finance.importBatches.push({ id:batchId, source:'codex-screenshots', notes:'Cartão de crédito Usuário 1 - Travel Rewards Visa Signature - 5903', createdAt:'2026-09-11T16:00:00.000Z' });
+    const rows = [
+      ['2026-06-24','Afterpay 044-4123456 CA',34.64,'expense',cat.shopping,'posted','regular','Foto 1'],
+      ['2026-06-26','COSTCO GAS #1001 TUSTIN CA',55.01,'expense',cat.gas,'posted','regular','Foto 1'],
+      ['2026-06-27','GEICO *AUTO 800-841-3000 DC',36.17,'expense',cat.auto,'posted','regular','Foto 1'],
+      ['2026-06-29','WM SUPERCENTER #2226 310-750-1983 CA',195.87,'expense',cat.market,'posted','regular','Foto 1'],
+      ['2026-07-02','COSTCO GAS #0671 HAWTHORNE CA',54.09,'expense',cat.gas,'posted','regular','Foto 1'],
+      ['2026-07-04','TRAVEL CREDIT',29.68,'income',cat.credit,'posted','credit','Foto 1 - crédito no cartão'],
+      ['2026-07-07','COSTCO GAS #0424 SIGNAL HILL CA',61.00,'expense',cat.gas,'posted','regular','Foto 1'],
+      ['2026-07-09','WAL-MART #5874 TORRANCE CA',53.25,'expense',cat.market,'posted','regular','Foto 1'],
+      ['2026-07-09','WM SUPERCENTER #2226 310-750-1983 CA',316.64,'expense',cat.market,'posted','regular','Foto 2'],
+      ['2026-07-10','COSTCO GAS #0671 HAWTHORNE CA',43.51,'expense',cat.gas,'posted','regular','Foto 2'],
+      ['2026-07-13','COSTCO GAS #0048 VAN NUYS CA',53.05,'expense',cat.gas,'posted','regular','Foto 2'],
+      ['2026-07-15','AFTERPAY 185-52896014 CA',6.78,'expense',cat.shopping,'posted','regular','Foto 2'],
+      ['2026-07-15','COSTCO GAS #0671 HAWTHORNE CA',50.10,'expense',cat.gas,'posted','regular','Foto 2'],
+      ['2026-07-18','STEAMGAMES.COM 4259522985425-8899642 WA',10.07,'expense',cat.shopping,'posted','regular','Foto 2'],
+      ['2026-07-18','WL *STEAM PURCHASE 425-889-9642 WA',10.77,'expense',cat.shopping,'posted','regular','Foto 2'],
+      ['2026-07-18','COSTCO GAS #0569 COMMERCE CA',54.02,'expense',cat.gas,'posted','regular','Foto 2'],
+      ['2026-07-20','PAYMENT FROM CHK 9334 CONF#z1Oovwt4e',1676.49,'income',cat.credit,'posted','transfer','Foto 2 - pagamento do cartão'],
+      ['2026-07-23','COSTCO GAS #0410 NORWALK CA',59.26,'expense',cat.gas,'posted','regular','Foto 2'],
+      ['2026-07-24','COSTCO WHSE #0671 HAWTHORNE CA',529.65,'expense',cat.market,'posted','regular','Foto 3'],
+      ['2026-07-25','AT&T DEVICE/EQUIP SHIPME 8003310500 TX',132.00,'expense',cat.shopping,'posted','regular','Foto 3'],
+      ['2026-07-27','GEICO *AUTO 800-841-3000 DC',36.17,'expense',cat.auto,'posted','regular','Foto 3'],
+      ['2026-07-27','TRADER JOE S #121 TORRANCE CA',24.06,'expense',cat.market,'posted','regular','Foto 3'],
+      ['2026-07-29','AFTERPAY 185-52896014 CA',12.68,'expense',cat.shopping,'posted','regular','Foto 3'],
+      ['2026-07-29','COSTCO GAS #0671 HAWTHORNE CA',68.07,'expense',cat.gas,'posted','regular','Foto 3'],
+      ['2026-07-31','csgo-skins Gibraltar',5.00,'expense',cat.shopping,'posted','regular','Foto 4'],
+      ['2026-07-31','COSTCO WHSE #1202 TORRANCE CA',9.88,'expense',cat.market,'posted','regular','Foto 4'],
+      ['2026-07-31','COSTCO GAS #1202 TORRANCE CA',56.32,'expense',cat.gas,'posted','regular','Foto 4'],
+      ['2026-08-01','COSTCO GAS #0671 HAWTHORNE CA',57.93,'expense',cat.gas,'posted','regular','Foto 4'],
+      ['2026-08-06','COSTCO GAS #0671 HAWTHORNE CA',45.96,'expense',cat.gas,'posted','regular','Foto 4'],
+      ['2026-08-08','COSTCO WHSE #0428 ALHAMBRA CA',8.83,'expense',cat.market,'posted','regular','Foto 4'],
+      ['2026-08-08','COSTCO GAS #0428 ALHAMBRA CA',42.99,'expense',cat.gas,'posted','regular','Foto 4'],
+      ['2026-08-10','WM SUPERCENTER #2226 310-750-1983 CA',93.02,'expense',cat.market,'posted','regular','Foto 5'],
+      ['2026-08-12','AFTERPAY 185-52896014 CA',12.68,'expense',cat.shopping,'posted','regular','Foto 5'],
+      ['2026-08-12','COSTCO GAS #0671 HAWTHORNE CA',46.00,'expense',cat.gas,'posted','regular','Foto 5'],
+      ['2026-08-15','COSTCO WHSE #0671 HAWTHORNE CA',5.50,'expense',cat.market,'posted','regular','Foto 5'],
+      ['2026-08-15','COSTCO GAS #0671 HAWTHORNE CA',50.03,'expense',cat.gas,'posted','regular','Foto 5'],
+      ['2026-08-19','WM SUPERCENTER #2226 310-750-1983 CA',85.91,'expense',cat.market,'posted','regular','Foto 5'],
+      ['2026-08-20','PAYMENT FROM CHK 7003 CONF#z874xsja5',1064.55,'income',cat.credit,'posted','transfer','Foto 5 - pagamento do cartão'],
+      ['2026-08-21','COSTCO GAS #0424 SIGNAL HILL CA',57.28,'expense',cat.gas,'posted','regular','Foto 5'],
+      ['2026-08-22','COSTCO WHSE #0671 HAWTHORNE CA',10.48,'expense',cat.market,'posted','regular','Foto 5'],
+      ['2026-08-22','COSTCO GAS #0671 HAWTHORNE CA',68.28,'expense',cat.gas,'posted','regular','Foto 5'],
+      ['2026-08-24','COSTCO GAS #1275 SANTA MARIA CA',30.07,'expense',cat.gas,'posted','regular','Foto 6'],
+      ['2026-08-26','AFTERPAY 185-52896014 CA',12.67,'expense',cat.shopping,'posted','regular','Foto 6'],
+      ['2026-08-27','GEICO *AUTO 800-841-3000 DC',36.17,'expense',cat.auto,'posted','regular','Foto 6'],
+      ['2026-09-03','COSTCO WHSE #0130 LOS ANGELES CA',300.84,'expense',cat.market,'posted','regular','Foto 6'],
+      ['2026-09-03','COSTCO GAS #0428 ALHAMBRA CA',60.02,'expense',cat.gas,'posted','regular','Foto 6'],
+      ['2026-09-04','COSTCO WHSE #0671 HAWTHORNE CA',10.48,'expense',cat.market,'posted','regular','Foto 6'],
+      ['2026-09-05','COSTCO GAS #0564 HAWTHORNE CA',32.24,'expense',cat.gas,'posted','regular','Foto 6'],
+      ['2026-09-09','AFTERPAY 185-52896014 CA',5.90,'expense',cat.shopping,'posted','regular','Foto 6'],
+      ['2026-09-09','COSTCO GAS #0569 COMMERCE CA',65.80,'expense',cat.gas,'posted','regular','Foto 6'],
+      ['2026-09-11','COSTCO GAS #0671',67.19,'expense',cat.gas,'pending','regular','Foto 6 - pendente; data não aparece no print, usei a data atual do lote']
+    ];
+    const existing = new Set((state.finance.transactions || []).flatMap(item => [item.id, item.externalFingerprint].filter(Boolean)));
+    let changed = false;
+    rows.forEach(([date,description,amount,type,categoryId,status,subtype,notes]) => {
+      const externalFingerprint = `bofa-5903|${date}|${description}|${amount.toFixed(2)}|${status}`;
+      const id = `fin-${slugify(externalFingerprint)}`;
+      if (existing.has(id) || existing.has(externalFingerprint)) return;
+      state.finance.transactions.push({ id, date, description, merchant:description, amount, type, responsible:'user1', categoryId, accountId, status, subtype, notes, importBatchId:batchId, externalFingerprint, createdAt:'2026-09-11T16:00:00.000Z', updatedAt:'2026-09-11T16:00:00.000Z' });
+      existing.add(id); existing.add(externalFingerprint); changed = true;
+    });
+    return changed;
+  }
+  window.financeBulkInsert = (records, options) => { const batch = importFinanceTransactions(records, options); saveState(); renderFinance(); return batch; };
   async function sha256(value) { const bytes = new TextEncoder().encode(value); const hash = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2,'0')).join(''); }
   function closeDialogs() { document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close()); }
   function showScreen(screen) {
     applyTheme();
-    ['loginScreen','homeScreen','rentalsModule','earningsModule'].forEach(id => { const element = $(id); if (element) element.hidden = id !== screen; });
+    ['loginScreen','homeScreen','rentalsModule','earningsModule','financeModule'].forEach(id => { const element = $(id); if (element) element.hidden = id !== screen; });
     document.body.classList.toggle('auth-mode', screen === 'loginScreen');
     document.body.classList.toggle('home-mode', screen === 'homeScreen');
-    document.body.classList.toggle('module-mode', screen === 'rentalsModule' || screen === 'earningsModule');
+    document.body.classList.toggle('module-mode', screen === 'rentalsModule' || screen === 'earningsModule' || screen === 'financeModule');
     window.scrollTo(0, 0);
     if (screen === 'rentalsModule') renderAll();
     if (screen === 'earningsModule') renderEarnings();
+    if (screen === 'financeModule') renderFinance();
   }
   function renderAuth() {
     const configured = Boolean(state.auth?.passwordHash);
@@ -156,12 +422,13 @@
     showScreen('homeScreen');
   }
   function logout() { state.auth ||= {}; state.auth.session = false; saveState(); closeDialogs(); renderAuth(); }
-  function openModule(module) { closeDialogs(); showScreen(module === 'earnings' ? 'earningsModule' : 'rentalsModule'); }
+  function openModule(module) { closeDialogs(); showScreen(module === 'earnings' ? 'earningsModule' : module === 'finance' ? 'financeModule' : 'rentalsModule'); }
   function openHome() { closeDialogs(); showScreen('homeScreen'); }
   function handlePrimaryNavigation(button) {
     if (button.id === 'logoutBtn') { logout(); return true; }
     if (button.id === 'openRentalsBtn') { openModule('rentals'); return true; }
     if (button.id === 'openEarningsBtn') { openModule('earnings'); return true; }
+    if (button.id === 'openFinanceBtn') { openModule('finance'); return true; }
     if (button.matches('[data-module-home]')) { openHome(); return true; }
     return false;
   }
@@ -178,12 +445,14 @@
     bind('#logoutBtn', logout);
     bind('#openRentalsBtn', () => openModule('rentals'));
     bind('#openEarningsBtn', () => openModule('earnings'));
+    bind('#openFinanceBtn', () => openModule('finance'));
     bind('[data-module-home]', openHome);
   }
   window.appNavigate = destination => {
     if (destination === 'logout') return logout();
     if (destination === 'home') return openHome();
     if (destination === 'earnings') return openModule('earnings');
+    if (destination === 'finance') return openModule('finance');
     return openModule('rentals');
   };
   function pushDeviceId() { state.settings ||= {}; if (!state.settings.pushDeviceId) { state.settings.pushDeviceId = `device-${uid()}`; saveState(); } return state.settings.pushDeviceId; }
@@ -504,6 +773,8 @@
     if (!Array.isArray(state.earnings)) { state.earnings = []; changed = true; }
     state.earningsSettings = { weeklyGoal: 0, dailyGoal: 250, ...(state.earningsSettings || {}) };
     state.auth = { ...(state.auth || {}) };
+    if (ensureFinanceState()) changed = true;
+    if (importFinanceTravelRewards5903User1Screens()) changed = true;
     if (importPaymentHistory()) changed = true;
     if (importAmazonFlexEarningsFromScreens()) changed = true;
     if (importAmazonFlexSecondAccountScreens()) changed = true;
@@ -1239,7 +1510,7 @@
 
   function renderBackupStatus() { const value = state.settings?.lastBackupAt; $('backupStatus').textContent = value ? `Último backup: ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value))}.` : 'Nenhum backup registrado.'; }
 
-  function renderAll() { renderSummary(); renderDashboard(); renderPayers(); renderHistory(); renderNotificationStatus(); renderBackupStatus(); if (!$('earningsModule')?.hidden) renderEarnings(); updateTimers(); }
+  function renderAll() { renderSummary(); renderDashboard(); renderPayers(); renderHistory(); renderNotificationStatus(); renderBackupStatus(); if (!$('earningsModule')?.hidden) renderEarnings(); if (!$('financeModule')?.hidden) renderFinance(); updateTimers(); }
 
   function openPayer(id) {
     const payer = state.payers.find(p => p.id === id);
@@ -1376,6 +1647,7 @@
     if (button.id === 'receivedSummaryBtn') openReceivedDetails();
     if (button.dataset.earningsTab) setEarningsPanel(button.dataset.earningsTab);
     if (button.dataset.earningsDetail) openEarningsDetail(button.dataset.earningsDetail);
+    if (button.dataset.financeTab) setFinancePanel(button.dataset.financeTab);
     if (button.dataset.profile) openProfile(button.dataset.profile);
     if (button.dataset.edit) openPayer(button.dataset.edit);
     if (button.dataset.payment) { if ($('pendingDialog').open) $('pendingDialog').close(); if ($('waitingDialog').open) $('waitingDialog').close(); if ($('receivedDialog').open) $('receivedDialog').close(); if ($('profileDialog').open) $('profileDialog').close(); openPayment(button.dataset.payment, button.dataset.week); }
@@ -1384,6 +1656,9 @@
     if (button.dataset.editEarning) { editEarning(button.dataset.editEarning); }
     if (button.dataset.deleteEarning) { const earning = state.earnings?.find(item => item.id === button.dataset.deleteEarning); if (earning && confirm(`Excluir o ganho de ${formatDate(earning.date)} no valor de ${money(earning.amount)}?`)) { state.earnings = state.earnings.filter(item => item.id !== earning.id); saveState(); renderEarnings(); showToast('Ganho excluído.'); } }
     if (button.dataset.delete) { const payer = state.payers.find(p => p.id === button.dataset.delete); if (payer && confirm(`Excluir ${payer.name}? O histórico desse pagador também será removido.`)) { state.payers = state.payers.filter(p => p.id !== payer.id); Object.values(state.payments).forEach(week => delete week[payer.id]); saveState(); renderAll(); showToast('Pagador excluído.'); } }
+    if (button.dataset.editFinance) { editFinanceTransaction(button.dataset.editFinance); }
+    if (button.dataset.postFinance) { markFinancePosted(button.dataset.postFinance); }
+    if (button.dataset.deleteFinance) { deleteFinanceTransaction(button.dataset.deleteFinance); }
     if (button.dataset.tab) { document.querySelectorAll('.tab,.panel').forEach(element => element.classList.remove('active')); button.classList.add('active'); $(`${button.dataset.tab}Panel`).classList.add('active'); }
   });
 
@@ -1394,6 +1669,11 @@
   $('loginForm').addEventListener('submit', handleLogin);
   $('earningForm').addEventListener('submit', addEarning);
   $('earningsGoalForm').addEventListener('submit', saveEarningsGoal);
+  $('financeTransactionForm')?.addEventListener('submit', saveFinanceTransaction);
+  $('financeCategoryForm')?.addEventListener('submit', saveFinanceCategory);
+  $('financeAccountForm')?.addEventListener('submit', saveFinanceAccount);
+  $('financeResponsibleFilter')?.addEventListener('change', event => { financeFilter.responsible = event.target.value; renderFinance(); });
+  $('financePeriodFilter')?.addEventListener('change', event => { financeFilter.period = event.target.value; renderFinance(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderAll(); checkDailyNotification(); } });
   $('payerDay').innerHTML = DAYS.map((day, index) => `<option value="${index}">${day}</option>`).join('');
   bindPrimaryNavigation(); migrateState(); applyTheme(); renderedDay = localDate(); renderAll(); renderAuth();

@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=59">
-  <link rel="stylesheet" href="css/betting-theme.css?v=59">
+  <link rel="stylesheet" href="css/styles.css?v=61">
+  <link rel="stylesheet" href="css/betting-theme.css?v=61">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -45,6 +45,7 @@
     <main class="home-main">
       <button id="openRentalsBtn" class="module-card" type="button" onclick="window.appNavigate && window.appNavigate('rentals'); return false;"><span>🏠</span><strong>Aluguéis</strong><small>Sistema atual de recebimentos</small></button>
       <button id="openEarningsBtn" class="module-card earnings" type="button" onclick="window.appNavigate && window.appNavigate('earnings'); return false;"><span>💰</span><strong>Ganhos</strong><small>Lançamentos, metas e relatórios</small></button>
+      <button id="openFinanceBtn" class="module-card finance" type="button" onclick="window.appNavigate && window.appNavigate('finance'); return false;"><span>💳</span><strong>Finanças</strong><small>Transações, categorias e cartões</small></button>
       <section class="backup-card home-backup-card" aria-label="Backup dos dados">
         <div>
           <strong>Backup e transferencia</strong>
@@ -206,6 +207,100 @@
     </main>
   </section>
 
+  <section id="financeModule" class="app-module finance-module" hidden>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">MÓDULO FINANÇAS</p>
+        <h1>Finanças</h1>
+        <p id="financePeriodLabel" class="week-label"></p>
+      </div>
+      <div class="topbar-actions">
+        <a class="back-arrow-link" href="/?menu=principal&v=60" aria-label="Voltar ao menu principal">←</a>
+        <div class="theme-switch" aria-label="Tema do app">
+          <button type="button" data-theme-set="auto">Auto</button>
+          <button type="button" data-theme-set="light">Claro</button>
+          <button type="button" data-theme-set="dark">Escuro</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="finance-controls earnings-card" aria-label="Filtros financeiros">
+        <label>Responsável<select id="financeResponsibleFilter"><option value="all">Todos</option><option value="user1">Usuário 1</option><option value="user2">Usuário 2</option><option value="shared">Compartilhado</option></select></label>
+        <label>Período<select id="financePeriodFilter"><option value="month">Mês atual</option><option value="week">Semana atual</option><option value="all">Tudo</option></select></label>
+      </section>
+
+      <section class="summary finance-summary" aria-label="Resumo financeiro">
+        <button class="summary-card received" type="button" data-finance-tab="transactions"><span>Entradas do mês</span><strong id="financeIncomeTotal">$0.00</strong><small id="financeIncomePending">Pendentes $0.00</small></button>
+        <button class="summary-card pending" type="button" data-finance-tab="transactions"><span>Despesas do mês</span><strong id="financeExpenseTotal">$0.00</strong><small id="financeExpensePending">Pendentes $0.00</small></button>
+        <button class="summary-card expected" type="button" data-finance-tab="overview"><span>Saldo confirmado</span><strong id="financeBalanceTotal">$0.00</strong><small id="financePendingTotal">Pendentes separados</small></button>
+      </section>
+
+      <nav class="earnings-tabs finance-tabs" aria-label="Abas de finanças">
+        <button class="active" type="button" data-finance-tab="overview">Visão geral</button>
+        <button type="button" data-finance-tab="transactions">Transações</button>
+        <button type="button" data-finance-tab="pending">Pendentes</button>
+        <button type="button" data-finance-tab="settings">Categorias</button>
+        <button type="button" data-finance-tab="add">Adicionar</button>
+      </nav>
+
+      <section class="earnings-card finance-panel" data-finance-panel="overview">
+        <div class="section-heading"><h2>Visão geral</h2></div>
+        <div id="financeOverviewReports" class="report-grid"></div>
+        <div class="section-heading compact"><h2>Despesas por categoria</h2></div>
+        <div id="financeCategoryBreakdown" class="detail-list compact-list"></div>
+        <div class="section-heading compact"><h2>Resumo por pessoa</h2></div>
+        <div id="financeResponsibleBreakdown" class="detail-list compact-list"></div>
+        <div class="section-heading compact"><h2>Transações recentes</h2></div>
+        <div id="financeRecentTransactions" class="detail-list"></div>
+      </section>
+
+      <section class="earnings-card finance-panel" data-finance-panel="transactions" hidden>
+        <div class="section-heading"><h2>Transações</h2><span id="financeTransactionsCount" class="count"></span></div>
+        <div id="financeTransactionsList" class="detail-list"></div>
+      </section>
+
+      <section class="earnings-card finance-panel" data-finance-panel="pending" hidden>
+        <div class="section-heading"><h2>Pendentes</h2><span id="financePendingCount" class="count danger"></span></div>
+        <p class="helper-text">Pendentes aparecem separados porque ainda podem mudar de valor, data ou descrição antes de confirmar.</p>
+        <div id="financePendingList" class="detail-list"></div>
+      </section>
+
+      <section class="earnings-card finance-panel" data-finance-panel="settings" hidden>
+        <div class="section-heading"><h2>Categorias</h2></div>
+        <div id="financeCategoriesList" class="detail-list"></div>
+        <form id="financeCategoryForm" class="finance-mini-form">
+          <input id="financeCategoryName" placeholder="Nova categoria">
+          <button class="primary" type="submit">Adicionar</button>
+        </form>
+        <div class="section-heading compact"><h2>Contas / cartões</h2></div>
+        <div id="financeAccountsList" class="detail-list"></div>
+        <form id="financeAccountForm" class="finance-mini-form">
+          <input id="financeAccountName" placeholder="Nova conta ou cartão">
+          <button class="primary" type="submit">Adicionar</button>
+        </form>
+      </section>
+
+      <section class="earnings-card finance-panel" data-finance-panel="add" hidden>
+        <div class="section-heading"><h2 id="financeFormTitle">Adicionar transação</h2></div>
+        <form id="financeTransactionForm" class="earning-form">
+          <input id="financeTransactionId" type="hidden">
+          <label>Data<input id="financeDate" type="date" required></label>
+          <label>Tipo<select id="financeType" required><option value="expense">Despesa</option><option value="income">Entrada</option></select></label>
+          <label class="wide">Descrição / merchant<input id="financeDescription" required maxlength="90" placeholder="Ex.: Mercado, Zelle, gasolina"></label>
+          <label>Valor<input id="financeAmount" inputmode="decimal" required placeholder="0,00"></label>
+          <label>Responsável<select id="financeResponsible" required><option value="user1">Usuário 1</option><option value="user2">Usuário 2</option><option value="shared">Compartilhado</option></select></label>
+          <label>Categoria<select id="financeCategory" required></select></label>
+          <label>Conta/cartão<select id="financeAccount" required></select></label>
+          <label>Status<select id="financeStatus" required><option value="posted">Confirmada</option><option value="pending">Pendente</option></select></label>
+          <label>Subtipo<select id="financeSubtype"><option value="regular">Normal</option><option value="income">Renda</option><option value="transfer">Transferência</option><option value="reimbursement">Reembolso</option><option value="deposit">Depósito</option><option value="credit">Crédito</option><option value="other">Outro</option></select></label>
+          <label class="wide">Observação<textarea id="financeNotes" maxlength="220" rows="2" placeholder="Opcional"></textarea></label>
+          <button id="financeSubmitBtn" class="primary" type="submit">Salvar transação</button>
+        </form>
+      </section>
+    </main>
+  </section>
+
   <dialog id="earningsDetailDialog" class="dialog">
     <div class="dialog-body">
       <div class="dialog-header"><div><p class="eyebrow">GANHOS</p><h2 id="earningsDetailTitle">Detalhes</h2></div><button class="close-button" type="button" data-close="earningsDetailDialog" aria-label="Fechar">×</button></div>
@@ -304,7 +399,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=59" defer></script>
-  <script src="js/app.js?v=59" defer></script>
+  <script src="js/payment-history-data.js?v=61" defer></script>
+  <script src="js/app.js?v=61" defer></script>
 </body>
 </html>
