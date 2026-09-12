@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'recebimentos-semanais-v1';
-  const DATA_VERSION = 20;
+  const DATA_VERSION = 21;
   const EARNING_APPS = ['Amazon Flex','Grubhub','Outros'];
   const EARNING_PEOPLE = ['Matheus','Esposa'];
   const FINANCE_DEFAULT_CATEGORIES = ['Gasolina','Mercado','Restaurante','Aluguel / Moradia','Contas','Compras','Transporte','Automóvel','Lazer','Saúde','Pets','Criança / Família','Assinaturas','Outros'];
@@ -189,19 +189,21 @@
     const records = financeFilteredTransactions(true);
     const posted = records.filter(item => item.status === 'posted');
     const pending = records.filter(item => item.status === 'pending');
+    const postedOperational = posted.filter(item => item.subtype !== 'transfer');
+    const pendingOperational = pending.filter(item => item.subtype !== 'transfer');
     const sum = (items, type) => items.filter(item => item.type === type).reduce((total, item) => total + Number(item.amount || 0), 0);
     const expensesByCategory = {};
     const byResponsible = {};
-    posted.filter(item => item.type === 'expense').forEach(item => {
+    postedOperational.filter(item => item.type === 'expense').forEach(item => {
       const category = financeCategoryById(item.categoryId).name;
       expensesByCategory[category] = (expensesByCategory[category] || 0) + Number(item.amount || 0);
     });
-    posted.forEach(item => {
+    postedOperational.forEach(item => {
       const label = financeResponsibleLabel(item.responsible);
       byResponsible[label] ||= { income:0, expense:0 };
       byResponsible[label][item.type] += Number(item.amount || 0);
     });
-    return { records, posted, pending, income:sum(posted,'income'), expense:sum(posted,'expense'), pendingIncome:sum(pending,'income'), pendingExpense:sum(pending,'expense'), expensesByCategory, byResponsible };
+    return { records, posted, pending, income:sum(postedOperational,'income'), expense:sum(postedOperational,'expense'), pendingIncome:sum(pendingOperational,'income'), pendingExpense:sum(pendingOperational,'expense'), expensesByCategory, byResponsible };
   }
   function setFinancePanel(panel = 'overview') {
     document.querySelectorAll('[data-finance-tab]').forEach(button => button.classList.toggle('active', button.dataset.financeTab === panel));
@@ -215,7 +217,7 @@
   }
   function financeTransactionRow(item) {
     const status = item.status === 'pending' ? 'Pendente' : 'Confirmada';
-    const type = item.type === 'income' ? 'Entrada' : 'Despesa';
+    const type = item.subtype === 'transfer' ? (item.type === 'income' ? 'Transferência recebida' : 'Transferência / pagamento') : (item.type === 'income' ? 'Entrada' : 'Despesa');
     const badge = item.status === 'pending' ? 'status-unpaid' : (item.type === 'income' ? 'status-paid' : 'status-partial');
     const sign = item.type === 'income' ? '+' : '-';
     return `<article class="detail-item finance-transaction ${item.status === 'pending' ? 'pending-transaction' : ''}"><div class="detail-item-main"><strong>${formatDate(item.date)} · ${escapeHtml(item.description || item.merchant || 'Sem descrição')}</strong><span>${escapeHtml(type)} · ${escapeHtml(financeResponsibleLabel(item.responsible))} · ${escapeHtml(financeCategoryById(item.categoryId).name)} · ${escapeHtml(financeAccountById(item.accountId).name)}</span>${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ''}<small class="status-badge ${badge}">${status}</small></div><div class="finance-row-side"><strong>${sign}${dollars(item.amount)}</strong><div class="detail-actions"><button type="button" data-edit-finance="${item.id}">Editar</button>${item.status === 'pending' ? `<button type="button" data-post-finance="${item.id}">Confirmar</button>` : ''}<button class="delete" type="button" data-delete-finance="${item.id}">Excluir</button></div></div></article>`;
@@ -259,7 +261,7 @@
     if ($('financeResponsibleBreakdown')) $('financeResponsibleBreakdown').innerHTML = Object.entries(stats.byResponsible).length ? Object.entries(stats.byResponsible).map(([label,value]) => detailRow(label,`Entradas ${dollars(value.income)} · Despesas ${dollars(value.expense)} · Saldo ${dollars(value.income - value.expense)}`)).join('') : empty('Nenhuma transação confirmada neste período.');
     if ($('financeRecentTransactions')) $('financeRecentTransactions').innerHTML = stats.records.slice(0,6).length ? stats.records.slice(0,6).map(financeTransactionRow).join('') : empty('Nenhuma transação cadastrada ainda.');
     renderFinanceCards(stats.records);
-    const purchases = stats.records.filter(item => item.type === 'expense');
+    const purchases = stats.records.filter(item => item.type === 'expense' && item.subtype !== 'transfer');
     if ($('financePurchasesCount')) $('financePurchasesCount').textContent = String(purchases.length || '');
     if ($('financePurchasesList')) $('financePurchasesList').innerHTML = purchases.length ? purchases.map(financeTransactionRow).join('') : empty('Nenhuma compra/despesa encontrada.');
     if ($('financeTransactionsCount')) $('financeTransactionsCount').textContent = String(stats.records.length || '');
@@ -488,6 +490,115 @@
       const id = `fin-${slugify(externalFingerprint)}`;
       if (existing.has(id) || existing.has(externalFingerprint)) return;
       state.finance.transactions.push({ id, date, description, merchant:description, amount, type, responsible:'user1', categoryId, accountId, status, subtype, notes, importBatchId:batchId, externalFingerprint, createdAt:'2026-09-11T17:00:00.000Z', updatedAt:'2026-09-11T17:00:00.000Z' });
+      existing.add(id); existing.add(externalFingerprint); changed = true;
+    });
+    return changed;
+  }
+  function importFinanceChecking9334User1Screens() {
+    ensureFinanceState();
+    const batchId = 'batch-bofa-checking-9334-user1-2026-06-09-screens-001';
+    const accountId = financeEnsureOption('accounts','Checking 9334 / Card 9273');
+    const category = name => financeEnsureOption('categories',name);
+    const cat = {
+      income: category('Renda / Depósito'),
+      transfer: category('Transferência entre contas'),
+      cardPayment: category('Pagamento / Crédito'),
+      cashback: category('Cashback / Recompensa'),
+      auto: category('Automóvel'),
+      transport: category('Transporte'),
+      leisure: category('Lazer'),
+      shopping: category('Compras'),
+      subscriptions: category('Assinaturas'),
+      restaurant: category('Restaurante'),
+      bills: category('Contas'),
+      atm: category('Saque ATM'),
+      zelle: category('Zelle / Transferência')
+    };
+    if (!state.finance.importBatches.some(batch => batch.id === batchId)) state.finance.importBatches.push({ id:batchId, source:'codex-screenshots', notes:'Conta checking Usuário 1 - Bank of America CKG 9334 / Card 9273', createdAt:'2026-09-11T18:00:00.000Z' });
+    const rows = [
+      ['2026-06-30','Current DES:Current ID:5nns74p3hdoy8yw INDN:Matheus Tavora CO ID:XXXXX33573 PPD',119.50,'income',cat.income,'posted','income','Foto 2 - depósito Current'],
+      ['2026-07-01','Current DES:Current ID:0zo9c9d1ghx47au INDN:Matheus Tavora CO ID:XXXXX33573 PPD',106.00,'income',cat.income,'posted','income','Foto 2 - depósito Current'],
+      ['2026-07-02','Current DES:Current ID:5h9tsn4fku37zzh INDN:Matheus Tavora CO ID:XXXXX33573 PPD',167.00,'income',cat.income,'posted','income','Foto 2 - depósito Current'],
+      ['2026-07-02','Online Banking transfer to CHK 7003 Confirmation# XXXXX96464',320.00,'expense',cat.transfer,'posted','transfer','Foto 2 - transferência para conta própria'],
+      ['2026-07-06','Bank of America DES:CASHREWARD ID:DAMASCENO TAVOR INDN:XXXXX0062XXXXXXXXX000 CO ID:XXXXX90310 PPD',9.47,'income',cat.cashback,'posted','cashback','Foto 2 - cash reward'],
+      ['2026-07-06','Online Banking transfer from CHK 7003 Confirmation# XXXXX86278',400.00,'income',cat.transfer,'posted','transfer','Foto 2 - transferência entre contas'],
+      ['2026-07-06','APPLE.COM/BILL 07/03 PURCHASE 866-712-7753 CA',19.99,'expense',cat.subscriptions,'posted','regular','Foto 3'],
+      ['2026-07-06','DD *DOORDASH SUPERIORG 07/03 PURCHASE DOORDASH.COM CA',21.86,'expense',cat.restaurant,'posted','regular','Foto 3'],
+      ['2026-07-06','TMOBILE PREPD 07/06 PURCHASE BELLEVUE WA',86.92,'expense',cat.bills,'posted','regular','Foto 3'],
+      ['2026-07-06','Online Banking transfer to CHK 7003 Confirmation# XXXXX80411',200.00,'expense',cat.transfer,'posted','transfer','Foto 3 - transferência para conta própria'],
+      ['2026-07-07','Current DES:Current ID:5k9e4v1dd7omxzc INDN:Matheus Tavora CO ID:XXXXX33573 PPD',278.50,'income',cat.income,'posted','income','Foto 3 - depósito Current'],
+      ['2026-07-07','Current DES:Current ID:0sc56szpw7vv3xe INDN:Matheus Tavora CO ID:XXXXX33573 PPD',152.00,'income',cat.income,'posted','income','Foto 3 - depósito Current'],
+      ['2026-07-07','Current DES:Current ID:j7n8z1n8tq8um7z INDN:Matheus Tavora CO ID:XXXXX33573 PPD',93.00,'income',cat.income,'posted','income','Foto 3 - depósito Current'],
+      ['2026-07-08','Current DES:Current ID:pat3c2ygdtmp7rd INDN:Matheus Tavora CO ID:XXXXX33573 PPD',119.50,'income',cat.income,'posted','income','Foto 4 - depósito Current'],
+      ['2026-07-09','Current DES:Current ID:mfz3d6lyrvwn9tm INDN:Matheus Tavora CO ID:XXXXX33573 PPD',1066.00,'income',cat.income,'posted','income','Foto 4 - depósito Current'],
+      ['2026-07-09','Current DES:Current ID:twx8nmr0ru8og81 INDN:Matheus Tavora CO ID:XXXXX33573 PPD',433.00,'income',cat.income,'posted','income','Foto 4 - depósito Current'],
+      ['2026-07-10','Zelle payment to Grazielle Amz Conf# x19j3jrnw',433.50,'expense',cat.zelle,'posted','regular','Foto 4 - Zelle enviado'],
+      ['2026-07-13','Current DES:Current ID:79t3ugy7nhwncnq INDN:Matheus Tavora CO ID:XXXXX33573 PPD',132.50,'income',cat.income,'posted','income','Foto 4 - depósito Current'],
+      ['2026-07-14','Current DES:Current ID:h9ovekaciinroza INDN:Matheus Tavora CO ID:XXXXX33573 PPD',1106.50,'income',cat.income,'posted','income','Foto 4 - depósito Current'],
+      ['2026-07-14','APPLE.COM/BILL 07/13 PURCHASE 866-712-7753 CA',36.98,'expense',cat.subscriptions,'posted','regular','Foto 5'],
+      ['2026-07-14','BKOFAMERICA ATM 07/13 #XXXXX6919 WITHDRWL TORRANCE-SARTORI TORRANCE CA',100.00,'expense',cat.atm,'posted','regular','Foto 5 - saque ATM'],
+      ['2026-07-15','Current DES:Current ID:88z3mnqidj47377 INDN:Matheus Tavora CO ID:XXXXX33573 PPD',152.00,'income',cat.income,'posted','income','Foto 5 - depósito Current'],
+      ['2026-07-15','McDonalds 3797 07/13 PURCHASE XXX-XX55611 CA',5.48,'expense',cat.restaurant,'posted','regular','Foto 5'],
+      ['2026-07-17','Current DES:Current ID:bmpverebljy9ey6 INDN:Matheus Tavora CO ID:XXXXX33573 PPD',401.00,'income',cat.income,'posted','income','Foto 5 - depósito Current'],
+      ['2026-07-20','APPLE COM BILL 07/19 PURCHASE CUPERTINO CA',2.99,'expense',cat.subscriptions,'posted','regular','Foto 5'],
+      ['2026-07-20','Mobile Banking payment to CRD 5903 Confirmation# z1Oovwt4e',1676.49,'expense',cat.cardPayment,'posted','transfer','Foto 5/6 - pagamento do cartão 5903'],
+      ['2026-07-21','Current DES:Current ID:ocucx8bc89wuwol INDN:Matheus Tavora CO ID:XXXXX33573 PPD',529.00,'income',cat.income,'posted','income','Foto 6 - depósito Current'],
+      ['2026-07-21','Current DES:Current ID:xz5uiniks26igjn INDN:Matheus Tavora CO ID:XXXXX33573 PPD',283.00,'income',cat.income,'posted','income','Foto 6 - depósito Current'],
+      ['2026-07-23','Mobile Banking payment to CRD 0034 Confirmation# z1yjlra0',625.22,'expense',cat.cardPayment,'posted','transfer','Foto 6 - pagamento do cartão 0034'],
+      ['2026-07-23','Zelle payment to Amor Conf# umm6nzfld',1200.00,'expense',cat.zelle,'posted','regular','Foto 6 - Zelle enviado'],
+      ['2026-07-24','Current DES:Current ID:pisctq9ze8ywoi5 INDN:Matheus Tavora CO ID:XXXXX33573 PPD',145.50,'income',cat.income,'posted','income','Foto 6 - depósito Current'],
+      ['2026-07-24','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-X7R9C3Q5G8I2 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX48598 WEB',18.24,'expense',cat.shopping,'posted','regular','Foto 6'],
+      ['2026-07-27','Current DES:Current ID:8vifqi5eono25ne INDN:Matheus Tavora CO ID:XXXXX33573 PPD',135.00,'income',cat.income,'posted','income','Foto 7 - depósito Current'],
+      ['2026-07-27','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-M6O6D7R1U1C8 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX48598 WEB',125.78,'expense',cat.shopping,'posted','regular','Foto 7'],
+      ['2026-07-27','SO CAL EDISON CO DES:DIRECTPAY ID:XXXXX8338182 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX78600 PPD',88.99,'expense',cat.bills,'posted','regular','Foto 7'],
+      ['2026-07-27','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-P3P7N3N8K8V2 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX65600 WEB',84.41,'expense',cat.shopping,'posted','regular','Foto 7'],
+      ['2026-07-27','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-S0Y9H8D6N2K1 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX48598 WEB',30.31,'expense',cat.shopping,'posted','regular','Foto 7'],
+      ['2026-07-27','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-C3R0H1Z1W7M8 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX48598 WEB',20.21,'expense',cat.shopping,'posted','regular','Foto 8'],
+      ['2026-07-28','Current DES:Current ID:d1s5z872mnia815 INDN:Matheus Tavora CO ID:XXXXX33573 PPD',115.00,'income',cat.income,'posted','income','Foto 8 - depósito Current'],
+      ['2026-07-29','Current DES:Current ID:awghpjw4rgsvujw INDN:Matheus Tavora CO ID:XXXXX33573 PPD',163.50,'income',cat.income,'posted','income','Foto 8 - depósito Current'],
+      ['2026-07-31','Current DES:Current ID:6jjkz15q57syprf INDN:Matheus Tavora CO ID:XXXXX33573 PPD',117.00,'income',cat.income,'posted','income','Foto 8 - depósito Current'],
+      ['2026-08-03','Current DES:Current ID:oqwfpy6yb0px21lj INDN:Matheus Tavora CO ID:XXXXX33573 PPD',480.00,'income',cat.income,'posted','income','Foto 8 - depósito Current'],
+      ['2026-08-03','APPLE COM BILL 08/02 PURCHASE CUPERTINO CA',19.99,'expense',cat.subscriptions,'posted','regular','Foto 8'],
+      ['2026-08-03','DD *DOORDASHDASHPASS 08/02 PURCHASE DOORDASH.COM CA',9.99,'expense',cat.subscriptions,'posted','regular','Foto 9'],
+      ['2026-08-04','Current DES:Current ID:y5f9n0knmcbiq1p INDN:Matheus Tavora CO ID:XXXXX33573 PPD',368.50,'income',cat.income,'posted','income','Foto 9 - depósito Current'],
+      ['2026-08-04','Online Banking transfer to CHK 7003 Confirmation# XXXXX30968',1400.00,'expense',cat.transfer,'posted','transfer','Foto 9 - transferência para conta própria'],
+      ['2026-08-05','Current DES:Current ID:lyddyqw69j96ndh INDN:Matheus Tavora CO ID:XXXXX33573 PPD',205.00,'income',cat.income,'posted','income','Foto 9 - depósito Current'],
+      ['2026-08-07','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-V4U4P0U5K0E1 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX48598 WEB',18.24,'expense',cat.shopping,'posted','regular','Foto 9'],
+      ['2026-08-10','Current DES:Current ID:g0y8zpsimgdkh2a INDN:Matheus Tavora CO ID:XXXXX33573 PPD',632.00,'income',cat.income,'posted','income','Foto 9 - depósito Current'],
+      ['2026-08-12','Current DES:Current ID:g0y5069tdavm5vx INDN:Matheus Tavora CO ID:XXXXX33573 PPD',395.00,'income',cat.income,'posted','income','Foto 10 - depósito Current'],
+      ['2026-08-13','APPLE COM BILL 08/13 PURCHASE CUPERTINO CA',36.98,'expense',cat.subscriptions,'posted','regular','Foto 10'],
+      ['2026-08-21','APPLE.COM/BILL 08/19 PURCHASE 866-712-7753 CA',2.99,'expense',cat.subscriptions,'posted','regular','Foto 10'],
+      ['2026-08-21','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-B1M2S7W0M5W9 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX48598 WEB',18.24,'expense',cat.shopping,'posted','regular','Foto 10'],
+      ['2026-08-25','SO CAL EDISON CO DES:DIRECTPAY ID:XXXXX8338182 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX78600 PPD',47.23,'expense',cat.bills,'posted','regular','Foto 10'],
+      ['2026-08-25','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-O6J4M0J0Q4R4 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX48598 WEB',30.31,'expense',cat.shopping,'posted','regular','Foto 13'],
+      ['2026-08-27','CLIPPER TRANSIT FARE 08/25 MOBILE PURCHASE SAN FRANCISCO CA',8.50,'expense',cat.transport,'posted','regular','Foto 13 - repetição 1'],
+      ['2026-08-27','CLIPPER TRANSIT FARE 08/25 MOBILE PURCHASE SAN FRANCISCO CA',8.50,'expense',cat.transport,'posted','regular','Foto 13 - repetição 2'],
+      ['2026-08-27','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-M9S9V9Z4C8B2 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX65600 WEB',125.78,'expense',cat.shopping,'posted','regular','Foto 13'],
+      ['2026-08-27','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-T7COV9F6M7S4 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX65600 WEB',20.21,'expense',cat.shopping,'posted','regular','Foto 13'],
+      ['2026-08-31','Online Banking transfer from CHK 7003 Confirmation# XXXXX60004',1500.00,'income',cat.transfer,'posted','transfer','Foto 12/14 - transferência entre contas'],
+      ['2026-08-31','Bank of America DES:CASHREWARD ID:DAMASCENO TAVOR INDN:XXXXX0062XXXXXXXXX000 CO ID:XXXXX90310 PPD',19.97,'income',cat.cashback,'posted','cashback','Foto 12 - cash reward'],
+      ['2026-08-31','McDonalds 13109 08/28 PURCHASE XXX-XX41225 CA',35.39,'expense',cat.restaurant,'posted','regular','Foto 12'],
+      ['2026-08-31','McDonalds 13109 08/29 PURCHASE XXX-XX41225 CA',22.36,'expense',cat.restaurant,'posted','regular','Foto 12'],
+      ['2026-08-31','McDonalds 13109 08/29 PURCHASE XXX-XX41225 CA',6.51,'expense',cat.restaurant,'posted','regular','Foto 12'],
+      ['2026-08-31','BKOFAMERICA ATM 08/30 #XXXXX6664 WITHDRWL HAWTHORNE & MANHAT LAWNDALE CA',2000.00,'expense',cat.atm,'posted','regular','Foto 12 - saque ATM'],
+      ['2026-09-02','Online Banking transfer to CHK 7003 Confirmation# XXXXX04080',1500.00,'expense',cat.transfer,'posted','transfer','Foto 12 - transferência para conta própria'],
+      ['2026-09-03','FASTRAK CSC 09/01 PURCHASE 415-486-8655 CA',11.25,'expense',cat.transport,'posted','regular','Foto 12'],
+      ['2026-09-03','APPLE.COM/BILL 09/02 PURCHASE 866-712-7753 CA',19.99,'expense',cat.subscriptions,'posted','regular','Foto 11'],
+      ['2026-09-03','DD *DOORDASHDASHPASS 09/02 PURCHASE DOORDASH.COM CA',9.99,'expense',cat.subscriptions,'posted','regular','Foto 11'],
+      ['2026-09-04','CITY TERRACE CAR WASH 09/02 PURCHASE LOS ANGELES CA',1.00,'expense',cat.auto,'posted','regular','Foto 11'],
+      ['2026-09-04','AFFIRM.COM PAYME DES:AFFIRM.COM ID:ST-G5A2L0N2Z3A0 INDN:MATHEUS DAMASCENO TAVO CO ID:XXXXX48598 WEB',11.79,'expense',cat.shopping,'posted','regular','Foto 11'],
+      ['2026-09-09','STEAMGAMES.COM 42595229 09/08 PURCHASE XXX-XX99642 WA',14.99,'expense',cat.leisure,'posted','regular','Foto 11'],
+      ['2026-09-10','FASTRAK CSC 09/09 PURCHASE 415-486-8655 CA',25.00,'expense',cat.transport,'posted','regular','Foto 11'],
+      ['2026-09-10','MOBILE PURCHASE JALISCO TIRE GARDENA CA ON 09/10',50.00,'expense',cat.auto,'pending','regular','Foto 1/11 - processing']
+    ];
+    const existing = new Set((state.finance.transactions || []).flatMap(item => [item.id, item.externalFingerprint].filter(Boolean)));
+    let changed = false;
+    rows.forEach(([date,description,amount,type,categoryId,status,subtype,notes], index) => {
+      const repeatKey = /repetição/i.test(notes || '') ? `|${index}` : '';
+      const externalFingerprint = `bofa-checking-9334|${date}|${description}|${amount.toFixed(2)}|${status}${repeatKey}`;
+      const id = `fin-${slugify(externalFingerprint)}`;
+      if (existing.has(id) || existing.has(externalFingerprint)) return;
+      state.finance.transactions.push({ id, date, description, merchant:description, amount, type, responsible:'user1', categoryId, accountId, status, subtype, notes, importBatchId:batchId, externalFingerprint, createdAt:'2026-09-11T18:00:00.000Z', updatedAt:'2026-09-11T18:00:00.000Z' });
       existing.add(id); existing.add(externalFingerprint); changed = true;
     });
     return changed;
@@ -890,6 +1001,7 @@
     if (ensureFinanceState()) changed = true;
     if (importFinanceTravelRewards5903User1Screens()) changed = true;
     if (importFinanceUnlimited0034User1Screens()) changed = true;
+    if (importFinanceChecking9334User1Screens()) changed = true;
     if (importPaymentHistory()) changed = true;
     if (importAmazonFlexEarningsFromScreens()) changed = true;
     if (importAmazonFlexSecondAccountScreens()) changed = true;
