@@ -380,3 +380,78 @@ body.theme-light .theme-switch button.active {
   color:#fff;
   background:#173f35;
 }
+
+.finance-module .finance-topbar {
+  color:var(--ink);
+  border:0;
+  background:transparent;
+  box-shadow:none;
+}
+.finance-module .finance-topbar::after { display:none; }
+.finance-module .finance-panel {
+  color:var(--ink);
+  border:0;
+  background:transparent;
+  box-shadow:none;
+}
+.finance-module .finance-controls.earnings-card {
+  color:var(--ink);
+  border:0;
+  background:rgba(18,26,22,.74);
+  box-shadow:0 12px 30px rgba(0,0,0,.16);
+}
+.finance-module .detail-item,
+.finance-module .finance-account-card,
+.finance-module .finance-analysis-list,
+.finance-module .finance-overview-grid .report-item,
+.finance-module .finance-quick-actions button {
+  color:var(--ink);
+  border-color:var(--line);
+  background:#121a16;
+}
+.finance-module .detail-item span,
+.finance-module .detail-item small,
+.finance-module .finance-account-card small,
+.finance-module .finance-analysis-row small {
+  color:var(--muted);
+}
+.finance-bottom-nav.earnings-tabs.finance-tabs {
+  background:rgba(18,25,21,.88);
+  box-shadow:0 12px 36px rgba(0,0,0,.34);
+}
+.finance-bottom-nav button { color:#89968f; }
+.finance-bottom-nav button.active {
+  color:#07110c;
+  background:var(--green);
+}
+body.theme-light .finance-module {
+  background:linear-gradient(180deg,#fbfbfb 0%,#f2f4f3 100%);
+}
+body.theme-light .finance-module .finance-topbar {
+  color:#111;
+  background:transparent;
+  box-shadow:none;
+}
+body.theme-light .finance-module .finance-controls.earnings-card {
+  color:#17211e;
+  background:rgba(255,255,255,.62);
+  box-shadow:0 12px 30px rgba(17,24,20,.08);
+}
+body.theme-light .finance-module .detail-item,
+body.theme-light .finance-module .finance-account-card,
+body.theme-light .finance-module .finance-analysis-list,
+body.theme-light .finance-module .finance-overview-grid .report-item,
+body.theme-light .finance-module .finance-quick-actions button {
+  color:#17211e;
+  border-color:#eef0ef;
+  background:#fff;
+}
+body.theme-light .finance-bottom-nav.earnings-tabs.finance-tabs {
+  background:rgba(244,246,245,.86);
+  box-shadow:0 12px 36px rgba(0,0,0,.16);
+}
+body.theme-light .finance-bottom-nav button { color:#8f9692; }
+body.theme-light .finance-bottom-nav button.active {
+  color:#111;
+  background:#fff;
+}

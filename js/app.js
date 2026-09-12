@@ -250,16 +250,35 @@
     if ($('financePeriodFilter')) $('financePeriodFilter').value = financeFilter.period;
     const range = financePeriodRange(); if ($('financePeriodLabel')) $('financePeriodLabel').textContent = range.label;
     const stats = financeStats();
+    const balance = stats.income - stats.expense;
+    const totalFlow = Math.max(stats.income, stats.expense, 1);
+    const expenseRatio = Math.min(100, Math.round((stats.expense / totalFlow) * 100));
+    if ($('financeHeroMonth')) $('financeHeroMonth').textContent = range.label.replace(' de ', ' ').replace('Tudo', 'Tudo');
+    if ($('financeHeroBalance')) $('financeHeroBalance').textContent = dollars(balance);
+    if ($('financeHeroIncome')) $('financeHeroIncome').textContent = dollars(stats.income);
+    if ($('financeHeroExpense')) $('financeHeroExpense').textContent = dollars(stats.expense);
+    if ($('financeHeroBar')) $('financeHeroBar').style.width = `${expenseRatio}%`;
+    if ($('financeHeroPending')) $('financeHeroPending').textContent = `Pendentes: entradas ${dollars(stats.pendingIncome)} · saídas ${dollars(stats.pendingExpense)}`;
     if ($('financeIncomeTotal')) $('financeIncomeTotal').textContent = dollars(stats.income);
     if ($('financeExpenseTotal')) $('financeExpenseTotal').textContent = dollars(stats.expense);
-    if ($('financeBalanceTotal')) $('financeBalanceTotal').textContent = dollars(stats.income - stats.expense);
+    if ($('financeBalanceTotal')) $('financeBalanceTotal').textContent = dollars(balance);
     if ($('financeIncomePending')) $('financeIncomePending').textContent = `Pendentes ${dollars(stats.pendingIncome)}`;
     if ($('financeExpensePending')) $('financeExpensePending').textContent = `Pendentes ${dollars(stats.pendingExpense)}`;
     if ($('financePendingTotal')) $('financePendingTotal').textContent = `${stats.pending.length} pendente(s) separados`;
-    if ($('financeOverviewReports')) $('financeOverviewReports').innerHTML = [['Entradas confirmadas', dollars(stats.income)], ['Despesas confirmadas', dollars(stats.expense)], ['Saldo do período', dollars(stats.income - stats.expense)], ['Pendentes', `Entradas ${dollars(stats.pendingIncome)} · Despesas ${dollars(stats.pendingExpense)}`]].map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+    if ($('financeOverviewReports')) $('financeOverviewReports').innerHTML = [['Entradas confirmadas', dollars(stats.income)], ['Despesas confirmadas', dollars(stats.expense)], ['Saldo do período', dollars(balance)], ['Pendentes', `Entradas ${dollars(stats.pendingIncome)} · Despesas ${dollars(stats.pendingExpense)}`]].map(([label,value]) => `<div class="report-item"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
     if ($('financeCategoryBreakdown')) $('financeCategoryBreakdown').innerHTML = Object.entries(stats.expensesByCategory).length ? Object.entries(stats.expensesByCategory).sort((a,b) => b[1] - a[1]).map(([label,value]) => detailRow(label,dollars(value))).join('') : empty('Nenhuma despesa confirmada neste período.');
     if ($('financeResponsibleBreakdown')) $('financeResponsibleBreakdown').innerHTML = Object.entries(stats.byResponsible).length ? Object.entries(stats.byResponsible).map(([label,value]) => detailRow(label,`Entradas ${dollars(value.income)} · Despesas ${dollars(value.expense)} · Saldo ${dollars(value.income - value.expense)}`)).join('') : empty('Nenhuma transação confirmada neste período.');
     if ($('financeRecentTransactions')) $('financeRecentTransactions').innerHTML = stats.records.slice(0,6).length ? stats.records.slice(0,6).map(financeTransactionRow).join('') : empty('Nenhuma transação cadastrada ainda.');
+    if ($('financeAnalysisSummary')) $('financeAnalysisSummary').innerHTML = `<article><span>Gasto</span><strong>${dollars(stats.expense)}</strong><small>${expenseRatio}% das entradas confirmadas</small></article><article><span>Saldo</span><strong>${dollars(balance)}</strong><small>${balance >= 0 ? 'positivo no período' : 'negativo no período'}</small></article>`;
+    if ($('financeAnalysisCategories')) {
+      const totalExpense = Math.max(stats.expense, 1);
+      const rows = Object.entries(stats.expensesByCategory).sort((a,b) => b[1] - a[1]).slice(0,8);
+      $('financeAnalysisCategories').innerHTML = rows.length ? rows.map(([label,value]) => {
+        const pct = Math.round((value / totalExpense) * 100);
+        const initial = escapeHtml(label.trim().charAt(0).toUpperCase() || '•');
+        return `<article class="finance-analysis-row"><div class="finance-ring" style="--pct:${pct}"><span>${pct}%</span></div><div><strong>${escapeHtml(label)}</strong><small>${dollars(value)} do total de despesas</small></div><b>${dollars(value)}</b></article>`;
+      }).join('') : empty('Nenhuma despesa confirmada para analisar.');
+    }
     renderFinanceCards(stats.records);
     const purchases = stats.records.filter(item => item.type === 'expense' && item.subtype !== 'transfer');
     if ($('financePurchasesCount')) $('financePurchasesCount').textContent = String(purchases.length || '');

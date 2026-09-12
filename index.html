@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css?v=65">
-  <link rel="stylesheet" href="css/betting-theme.css?v=65">
+  <link rel="stylesheet" href="css/styles.css?v=66">
+  <link rel="stylesheet" href="css/betting-theme.css?v=66">
   <title>Recebimentos Semanais</title>
 </head>
 <body>
@@ -208,9 +208,9 @@
   </section>
 
   <section id="financeModule" class="app-module finance-module" hidden>
-    <header class="topbar">
+    <header class="topbar finance-topbar">
       <div>
-        <p class="eyebrow">MÓDULO FINANÇAS</p>
+        <p class="eyebrow">Bom dia</p>
         <h1>Finanças</h1>
         <p id="financePeriodLabel" class="week-label"></p>
       </div>
@@ -225,6 +225,18 @@
     </header>
 
     <main>
+      <section class="finance-hero" aria-label="Resumo financeiro principal">
+        <div class="finance-hero-head"><span>Guardado</span><strong id="financeHeroMonth">Mês</strong></div>
+        <strong id="financeHeroBalance" class="finance-hero-balance">$0.00</strong>
+        <div class="finance-hero-track"><i id="financeHeroBar"></i></div>
+        <div class="finance-hero-totals">
+          <p><span>Entradas</span><strong id="financeHeroIncome">$0.00</strong></p>
+          <p><span>Saídas</span><strong id="financeHeroExpense">$0.00</strong></p>
+        </div>
+        <button type="button" data-finance-tab="transactions">Ver detalhes</button>
+        <small id="financeHeroPending">Pendentes separados</small>
+      </section>
+
       <section class="finance-controls earnings-card" aria-label="Filtros financeiros">
         <label>Responsável<select id="financeResponsibleFilter"><option value="all">Todos</option><option value="user1">Usuário 1</option><option value="user2">Usuário 2</option><option value="shared">Compartilhado</option></select></label>
         <label>Período<select id="financePeriodFilter"><option value="month">Mês atual</option><option value="week">Semana atual</option><option value="all">Tudo</option></select></label>
@@ -236,25 +248,29 @@
         <button class="summary-card expected" type="button" data-finance-tab="overview"><span>Saldo confirmado</span><strong id="financeBalanceTotal">$0.00</strong><small id="financePendingTotal">Pendentes separados</small></button>
       </section>
 
-      <nav class="earnings-tabs finance-tabs" aria-label="Abas de finanças">
-        <button class="active" type="button" data-finance-tab="overview">Visão geral</button>
-        <button type="button" data-finance-tab="cards">Cartões</button>
-        <button type="button" data-finance-tab="purchases">Compras</button>
-        <button type="button" data-finance-tab="transactions">Transações</button>
-        <button type="button" data-finance-tab="pending">Pendentes</button>
-        <button type="button" data-finance-tab="settings">Categorias</button>
-        <button type="button" data-finance-tab="add">Adicionar</button>
+      <nav class="earnings-tabs finance-tabs finance-bottom-nav" aria-label="Abas de finanças">
+        <button type="button" data-finance-tab="cards" data-icon="💳">Contas</button>
+        <button class="active" type="button" data-finance-tab="overview" data-icon="🏠">Home</button>
+        <button type="button" data-finance-tab="analysis" data-icon="📊">Análise</button>
+        <button type="button" data-finance-tab="transactions" data-icon="⇄">Transações</button>
+        <button type="button" data-finance-tab="settings" data-icon="⚙️">Config</button>
       </nav>
 
       <section class="earnings-card finance-panel" data-finance-panel="overview">
-        <div class="section-heading"><h2>Visão geral</h2></div>
-        <div id="financeOverviewReports" class="report-grid"></div>
+        <div class="section-heading"><h2>Últimas transações</h2><button class="finance-text-link" type="button" data-finance-tab="transactions">Ver todas</button></div>
+        <div id="financeRecentTransactions" class="detail-list"></div>
         <div class="section-heading compact"><h2>Despesas por categoria</h2></div>
         <div id="financeCategoryBreakdown" class="detail-list compact-list"></div>
         <div class="section-heading compact"><h2>Resumo por pessoa</h2></div>
         <div id="financeResponsibleBreakdown" class="detail-list compact-list"></div>
-        <div class="section-heading compact"><h2>Transações recentes</h2></div>
-        <div id="financeRecentTransactions" class="detail-list"></div>
+      </section>
+
+      <section class="earnings-card finance-panel finance-analysis-panel" data-finance-panel="analysis" hidden>
+        <div class="section-heading"><h2>Análise</h2></div>
+        <div id="financeOverviewReports" class="report-grid finance-overview-grid"></div>
+        <div id="financeAnalysisSummary" class="finance-analysis-summary"></div>
+        <div class="section-heading compact"><h2>Gastos por categoria</h2></div>
+        <div id="financeAnalysisCategories" class="finance-analysis-list"></div>
       </section>
 
       <section class="earnings-card finance-panel" data-finance-panel="cards" hidden>
@@ -271,6 +287,11 @@
 
       <section class="earnings-card finance-panel" data-finance-panel="transactions" hidden>
         <div class="section-heading"><h2>Transações</h2><span id="financeTransactionsCount" class="count"></span></div>
+        <div class="finance-quick-actions">
+          <button type="button" data-finance-tab="purchases">Compras</button>
+          <button type="button" data-finance-tab="pending">Pendentes</button>
+          <button type="button" data-finance-tab="add">+ Adicionar</button>
+        </div>
         <div id="financeTransactionsList" class="detail-list"></div>
       </section>
 
@@ -413,7 +434,7 @@
 
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/payment-history-data.js?v=65" defer></script>
-  <script src="js/app.js?v=65" defer></script>
+  <script src="js/payment-history-data.js?v=66" defer></script>
+  <script src="js/app.js?v=66" defer></script>
 </body>
 </html>
