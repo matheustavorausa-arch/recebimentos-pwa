@@ -170,10 +170,22 @@
   function financeResponsibleLabel(value) { return state.finance?.settings?.[`${value}Label`] || FINANCE_RESPONSIBLES[value] || value || 'Todos'; }
   function financeCategoryById(id) { return (state.finance?.categories || []).find(item => item.id === id) || { id, name:'Outros' }; }
   function financeAccountById(id) { return (state.finance?.accounts || []).find(item => item.id === id) || { id, name:'Sem conta' }; }
+  function financeAccountMeta(account = {}) {
+    const text = `${account.name || ''} ${account.id || ''}`.toLowerCase();
+    const last4Match = `${account.name || ''}`.match(/(?:card\s*)?(\d{4})(?!.*\d{4})/i);
+    const accountMatch = `${account.name || ''}`.match(/(?:checking|banking|chk|ckg|conta|adv plus banking)[^\d]*(\d{4})/i);
+    const last4 = last4Match?.[1] || '----';
+    const bank = /bofa|bank of america|travel rewards|unlimited cash|adv plus|ckg|chk|checking/i.test(account.name || '') ? 'Bank of America' : 'Banco não definido';
+    const network = /visa|travel rewards|unlimited cash|card/i.test(account.name || '') ? 'Visa' : '';
+    const isCredit = /(visa|credit|rewards|signature|crd|cart[aã]o de cr[eé]dito|credit card)/i.test(text) && !/(checking|banking|chk|ckg|debit|d[eé]bito)/i.test(text);
+    const isDebit = /(checking|banking|chk|ckg|debit|d[eé]bito|conta)/i.test(text);
+    const product = /travel rewards/i.test(text) ? 'Travel Rewards' : /unlimited cash/i.test(text) ? 'Unlimited Cash' : /adv plus/i.test(text) ? 'Adv Plus Banking' : isCredit ? 'Cartão de crédito' : isDebit ? 'Conta checking' : 'Conta';
+    return { bank, network, last4, accountLast4:accountMatch?.[1] || (/checking|banking|chk|ckg/i.test(text) ? last4 : ''), product, paymentType:isCredit ? 'Crédito' : isDebit ? 'Débito' : 'Conta' };
+  }
   function financeAccountKind(account = {}) {
     const text = `${account.name || ''} ${account.id || ''}`.toLowerCase();
-    if (/(visa|credit|rewards|signature|card|crd|cart[aã]o)/i.test(text)) return 'credit';
-    if (/(checking|banking|chk|ckg|conta)/i.test(text)) return 'checking';
+    if (/(checking|banking|chk|ckg|debit|d[eé]bito|conta)/i.test(text)) return 'checking';
+    if (/(visa|credit|rewards|signature|crd|cart[aã]o de cr[eé]dito|credit card)/i.test(text)) return 'credit';
     return 'other';
   }
   function financeAccountKindLabel(kind) { return { credit:'Cartões de crédito', checking:'Contas checking', other:'Outras contas' }[kind] || 'Outras contas'; }
@@ -252,14 +264,53 @@
       else byAccount[account.id].purchases += Number(item.amount || 0);
     });
     const cards = Object.values(byAccount).sort((a,b) => a.kind.localeCompare(b.kind) || (b.purchases + b.pending + b.credits) - (a.purchases + a.pending + a.credits));
-    if (!cards.length) { $('financeCardsList').innerHTML = empty('Nenhum cartão/conta com transações neste filtro.'); return; }
-    $('financeCardsList').innerHTML = ['checking','credit','other'].map(kind => {
+    const renderAccountButton = (card, mode) => {
+      const meta = financeAccountMeta({ id:card.id, name:card.name });
+      const balance = card.credits - card.purchases;
+      const lastLine = mode === 'credit'
+        ? `${meta.bank}${meta.network ? ` · ${meta.network}` : ''} · final ${meta.last4}`
+        : `${meta.bank}${meta.accountLast4 ? ` · conta ${meta.accountLast4}` : ''}${meta.last4 !== meta.accountLast4 ? ` · cartão ${meta.last4}` : ''}`;
+      const numbers = mode === 'credit'
+        ? `<p><span>Compras reais</span><strong>${dollars(card.purchases)}</strong></p><p><span>Créditos</span><strong>${dollars(card.credits)}</strong></p><p><span>Pagamentos fatura</span><strong>${dollars(card.transfers)}</strong></p><p><span>Pendentes</span><strong>${dollars(card.pending)}</strong></p>`
+        : `<p><span>Entradas reais</span><strong>${dollars(card.credits)}</strong></p><p><span>Saídas reais</span><strong>${dollars(card.purchases)}</strong></p><p><span>Pgto./transfer.</span><strong>${dollars(card.transfers)}</strong></p><p><span>Saldo operação</span><strong>${dollars(balance)}</strong></p>`;
+      return `<button class="finance-account-card finance-plastic-wrap" type="button" data-finance-account="${escapeHtml(card.id || card.name)}">
+        <article class="finance-plastic-card finance-plastic-${mode}">
+          <div class="finance-plastic-top"><span>${escapeHtml(meta.product)}</span><b>${escapeHtml(meta.paymentType)}</b></div>
+          <strong>Cartão ${escapeHtml(meta.last4)}</strong>
+          <small>${escapeHtml(lastLine)}</small>
+        </article>
+        <div class="finance-account-numbers">${numbers}</div>
+        <small>${card.count} transação${card.count === 1 ? '' : 'ões'} no filtro atual · toque para detalhes</small>
+      </button>`;
+    };
+    const renderZones = (targetId, kinds, emptyText) => {
+      if (!$(targetId)) return;
+      const scoped = cards.filter(card => kinds.includes(card.kind));
+      if (!scoped.length) { $(targetId).innerHTML = empty(emptyText); return; }
+      $(targetId).innerHTML = kinds.map(kind => {
+        const group = scoped.filter(card => card.kind === kind);
+        if (!group.length) return '';
+        const totals = group.reduce((acc, card) => ({ purchases:acc.purchases + card.purchases, credits:acc.credits + card.credits, transfers:acc.transfers + card.transfers, pending:acc.pending + card.pending, count:acc.count + card.count }), { purchases:0, credits:0, transfers:0, pending:0, count:0 });
+        const mode = kind === 'credit' ? 'credit' : 'debit';
+        const detail = kind === 'credit'
+          ? `compras ${dollars(totals.purchases)} · faturas ${dollars(totals.transfers)}`
+          : `entradas ${dollars(totals.credits)} · saídas ${dollars(totals.purchases)} · transferências ${dollars(totals.transfers)}`;
+        const items = group.map(card => renderAccountButton(card, mode)).join('');
+        return `<section class="finance-account-zone"><div class="finance-zone-head"><div><span>Zona</span><strong>${financeAccountKindLabel(kind)}</strong></div><small>${totals.count} transações · ${detail}</small></div>${items}</section>`;
+      }).join('');
+    };
+    renderZones('financeCardsList', ['credit'], 'Nenhum cartão de crédito com transações neste filtro.');
+    renderZones('financeAccountsZoneList', ['checking','other'], 'Nenhuma conta checking/débito com transações neste filtro.');
+    if (!$('financeAccountsZoneList')) {
+      if (!cards.length) { $('financeCardsList').innerHTML = empty('Nenhum cartão/conta com transações neste filtro.'); return; }
+      $('financeCardsList').innerHTML = ['checking','credit','other'].map(kind => {
       const group = cards.filter(card => card.kind === kind);
       if (!group.length) return '';
       const totals = group.reduce((acc, card) => ({ purchases:acc.purchases + card.purchases, credits:acc.credits + card.credits, transfers:acc.transfers + card.transfers, pending:acc.pending + card.pending, count:acc.count + card.count }), { purchases:0, credits:0, transfers:0, pending:0, count:0 });
       const items = group.map(card => `<button class="finance-account-card" type="button" data-finance-account="${escapeHtml(card.id || card.name)}"><div><span>${financeAccountKindLabel(card.kind).slice(0,-1)}</span><strong>${escapeHtml(card.name)}</strong></div><div class="finance-account-numbers"><p><span>Entradas reais</span><strong>${dollars(card.credits)}</strong></p><p><span>Saídas reais</span><strong>${dollars(card.purchases)}</strong></p><p><span>Transferências</span><strong>${dollars(card.transfers)}</strong></p><p><span>Pendentes</span><strong>${dollars(card.pending)}</strong></p></div><small>${card.count} transação${card.count === 1 ? '' : 'ões'} no filtro atual · toque para detalhes</small></button>`).join('');
       return `<section class="finance-account-zone"><div class="finance-zone-head"><div><span>Zona</span><strong>${financeAccountKindLabel(kind)}</strong></div><small>${totals.count} transações · saídas ${dollars(totals.purchases)} · transferências ${dollars(totals.transfers)}</small></div>${items}</section>`;
-    }).join('');
+      }).join('');
+    }
   }
   function renderFinanceSettings() {
     if ($('financeCategoriesList')) $('financeCategoriesList').innerHTML = (state.finance?.categories || []).map(item => `<article class="detail-item"><div class="detail-item-main"><strong>${escapeHtml(item.name)}</strong><span>${item.archived ? 'Arquivada' : 'Ativa'}</span></div></article>`).join('') || empty('Nenhuma categoria.');
@@ -289,8 +340,9 @@
     const realExpense = records.filter(item => item.status === 'posted' && item.type === 'expense' && item.subtype !== 'transfer').reduce((sum,item) => sum + Number(item.amount || 0), 0);
     const transfers = records.filter(item => item.status === 'posted' && item.subtype === 'transfer').reduce((sum,item) => sum + Number(item.amount || 0), 0);
     const kind = financeAccountKind(account);
+    const meta = financeAccountMeta(account);
     $('financeDetailTitle').textContent = account.name || 'Conta/cartão';
-    $('financeDetailBody').innerHTML = `<article class="finance-card-preview finance-card-${kind}"><span>${financeAccountKindLabel(kind)}</span><strong>${escapeHtml(account.name || 'Conta')}</strong><small>${records.length} transações no filtro atual</small></article><div class="report-grid finance-overview-grid"><div class="report-item"><span>Entradas reais</span><strong>${dollars(realIncome)}</strong></div><div class="report-item"><span>Saídas reais</span><strong>${dollars(realExpense)}</strong></div><div class="report-item"><span>Transferências</span><strong>${dollars(transfers)}</strong></div><div class="report-item"><span>Saldo real</span><strong>${dollars(realIncome - realExpense)}</strong></div></div>${financeDetailRows(records, 24)}`;
+    $('financeDetailBody').innerHTML = `<article class="finance-card-preview finance-card-${kind}"><div class="finance-plastic-top"><span>${escapeHtml(meta.product)}</span><b>${escapeHtml(meta.paymentType)}</b></div><strong>Cartão ${escapeHtml(meta.last4)}</strong><small>${escapeHtml(meta.bank)}${meta.network ? ` · ${escapeHtml(meta.network)}` : ''} · ${records.length} transações no filtro atual</small></article><div class="report-grid finance-overview-grid"><div class="report-item"><span>Entradas reais</span><strong>${dollars(realIncome)}</strong></div><div class="report-item"><span>Saídas reais</span><strong>${dollars(realExpense)}</strong></div><div class="report-item"><span>Transferências / fatura</span><strong>${dollars(transfers)}</strong></div><div class="report-item"><span>Saldo sem duplicar</span><strong>${dollars(realIncome - realExpense)}</strong></div></div>${financeDetailRows(records, 24)}`;
     $('financeDetailDialog').showModal();
   }
   function renderFinance() {
